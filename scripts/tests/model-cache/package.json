@@ -1,0 +1,1 @@
+{"name":"aigccat-model-cache-tests","private":true,"type":"module","scripts":{"test":"node --test cache.test.mjs"},"devDependencies":{"fake-indexeddb":"6.2.4"}}

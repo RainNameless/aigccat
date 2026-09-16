@@ -1,0 +1,193 @@
+{
+  "version": "1.0",
+  "note": "aigccat 细粒度分类体系：大类 → 中类 → 小类；zh 为主（默认），en 为英文副本；kw 为关键词（中英均可匹配）",
+  "tree": {
+    "character": {
+      "zh": "人物", "en": "Character",
+      "groups": {
+        "gender": {"zh": "性别", "en": "Gender", "items": [
+          {"zh": "男性", "en": "Male", "kw": ["boy", "man", "male", "男", "男孩", "男人"]},
+          {"zh": "女性", "en": "Female", "kw": ["girl", "woman", "female", "女", "女孩", "女人"]},
+          {"zh": "中性", "en": "Unisex", "kw": ["unisex", "中性"]}
+        ]},
+        "age": {"zh": "年龄段", "en": "Age", "items": [
+          {"zh": "婴儿", "en": "Infant", "kw": ["baby", "infant", "婴儿", "宝宝"]},
+          {"zh": "儿童", "en": "Child", "kw": ["child", "kid", "boy", "girl", "儿童", "小孩", "孩子"]},
+          {"zh": "少年", "en": "Teen", "kw": ["teen", "student", "youth", "少年", "学生"]},
+          {"zh": "青年", "en": "Adult", "kw": ["adult", "young", "青年", "成人"]},
+          {"zh": "中年", "en": "Middle-aged", "kw": ["middle", "中年"]},
+          {"zh": "老年", "en": "Elder", "kw": ["elder", "old", "grandpa", "grandma", "senior", "老人", "老年"]}
+        ]},
+        "role": {"zh": "身份职业", "en": "Role", "items": [
+          {"zh": "村民", "en": "Villager", "kw": ["villager", "村民", "居民"]},
+          {"zh": "商人", "en": "Merchant", "kw": ["merchant", "vendor", "trader", "shop", "商人", "商贩", "店主"]},
+          {"zh": "守卫", "en": "Guard", "kw": ["guard", "soldier", "knight", "守卫", "士兵", "骑士"]},
+          {"zh": "学生", "en": "Student", "kw": ["student", "pupil", "学生"]},
+          {"zh": "厨师", "en": "Chef", "kw": ["chef", "cook", "baker", "厨师", "厨子"]},
+          {"zh": "农夫", "en": "Farmer", "kw": ["farmer", "农夫", "农民"]},
+          {"zh": "工匠", "en": "Craftsman", "kw": ["smith", "carpenter", "craft", "工匠", "铁匠", "木匠"]},
+          {"zh": "医师", "en": "Doctor", "kw": ["doctor", "healer", "nurse", "医师", "医生"]},
+          {"zh": "贵族", "en": "Noble", "kw": ["noble", "lord", "lady", "king", "queen", "贵族", "王族"]},
+          {"zh": "冒险者", "en": "Adventurer", "kw": ["adventurer", "hunter", "rogue", "冒险者", "猎人"]}
+        ]}
+      }
+    },
+    "apparel": {
+      "zh": "服装配饰", "en": "Apparel",
+      "groups": {
+        "part": {"zh": "部位", "en": "Part", "items": [
+          {"zh": "上衣", "en": "Top", "kw": ["shirt", "jacket", "coat", "hoodie", "top", "sweater", "上衣", "外套", "衬衫"]},
+          {"zh": "下装", "en": "Bottom", "kw": ["pants", "trousers", "skirt", "shorts", "裤子", "裙子", "短裤"]},
+          {"zh": "连衣裙", "en": "Dress", "kw": ["dress", "gown", "suit", "连衣裙", "礼服"]},
+          {"zh": "鞋靴", "en": "Shoes", "kw": ["shoe", "boot", "sandal", "sneaker", "鞋", "靴"]},
+          {"zh": "帽饰", "en": "Hat", "kw": ["hat", "cap", "helmet", "hood", "帽子", "头盔"]},
+          {"zh": "配饰", "en": "Accessory", "kw": ["bag", "backpack", "belt", "scarf", "glove", "jewel", "包", "腰带", "围巾", "手套", "首饰"]}
+        ]},
+        "season": {"zh": "季节", "en": "Season", "items": [
+          {"zh": "春", "en": "Spring", "kw": ["spring", "春"]},
+          {"zh": "夏", "en": "Summer", "kw": ["summer", "夏"]},
+          {"zh": "秋", "en": "Autumn", "kw": ["autumn", "fall", "秋"]},
+          {"zh": "冬", "en": "Winter", "kw": ["winter", "snow", "冬"]}
+        ]}
+      }
+    },
+    "building": {
+      "zh": "建筑", "en": "Building",
+      "groups": {
+        "kind": {"zh": "建筑类型", "en": "Kind", "items": [
+          {"zh": "住宅", "en": "House", "kw": ["house", "home", "cabin", "cottage", "住宅", "房屋", "小屋"]},
+          {"zh": "商店", "en": "Shop", "kw": ["shop", "store", "stall", "market", "商店", "店铺", "摊位"]},
+          {"zh": "公共设施", "en": "Public", "kw": ["hall", "school", "hospital", "library", "市政", "学校", "医院", "图书馆"]},
+          {"zh": "宗教建筑", "en": "Religious", "kw": ["church", "temple", "shrine", "教堂", "寺庙", "神殿"]},
+          {"zh": "防御工事", "en": "Fortification", "kw": ["wall", "gate", "tower", "fort", "城墙", "城门", "塔楼", "堡垒"]},
+          {"zh": "农业建筑", "en": "Farm", "kw": ["barn", "mill", "greenhouse", "silo", "谷仓", "磨坊", "温室"]},
+          {"zh": "桥梁", "en": "Bridge", "kw": ["bridge", "桥"]},
+          {"zh": "废墟", "en": "Ruin", "kw": ["ruin", "废墟", "遗迹"]}
+        ]},
+        "part": {"zh": "构件", "en": "Part", "items": [
+          {"zh": "墙", "en": "Wall", "kw": ["wall", "墙"]},
+          {"zh": "屋顶", "en": "Roof", "kw": ["roof", "屋顶"]},
+          {"zh": "门窗", "en": "Door/Window", "kw": ["door", "window", "门", "窗"]},
+          {"zh": "楼梯", "en": "Stairs", "kw": ["stair", "step", "ladder", "楼梯", "台阶", "梯子"]},
+          {"zh": "围栏", "en": "Fence", "kw": ["fence", "railing", "围栏", "栏杆"]}
+        ]}
+      }
+    },
+    "prop": {
+      "zh": "道具", "en": "Prop",
+      "groups": {
+        "kind": {"zh": "道具类型", "en": "Kind", "items": [
+          {"zh": "花瓶", "en": "Vase", "kw": ["vase", "花瓶", "瓶"]},
+          {"zh": "碗盘", "en": "Bowl/Plate", "kw": ["bowl", "plate", "dish", "碗", "盘", "碟"]},
+          {"zh": "杯壶", "en": "Cup/Pot", "kw": ["cup", "mug", "pot", "kettle", "teapot", "杯", "壶"]},
+          {"zh": "餐具", "en": "Tableware", "kw": ["chopstick", "spoon", "fork", "knife", "筷子", "勺", "叉", "刀"]},
+          {"zh": "食物", "en": "Food", "kw": ["food", "bread", "meat", "fruit", "vegetable", "cake", "drink", "食物", "面包", "肉", "水果", "蛋糕", "饮料"]},
+          {"zh": "家具", "en": "Furniture", "kw": ["table", "chair", "bed", "shelf", "cabinet", "sofa", "desk", "桌", "椅", "床", "柜", "沙发", "书架"]},
+          {"zh": "灯具", "en": "Lamp", "kw": ["lamp", "lantern", "streetlight", "light", "灯", "路灯", "台灯", "灯笼"]},
+          {"zh": "装饰", "en": "Decoration", "kw": ["painting", "frame", "statue", "sculpture", "candle", "carpet", "curtain", "画", "雕塑", "蜡烛", "地毯", "窗帘"]},
+          {"zh": "容器", "en": "Container", "kw": ["barrel", "crate", "box", "chest", "bucket", "basket", "桶", "箱", "篮子", "宝箱"]},
+          {"zh": "工具", "en": "Tool", "kw": ["hammer", "axe", "shovel", "hoe", "tool", "锤", "斧", "铲", "锄", "工具"]},
+          {"zh": "文书", "en": "Book/Paper", "kw": ["book", "paper", "scroll", "letter", "sign", "书", "纸", "卷轴", "信件", "招牌"]},
+          {"zh": "乐器", "en": "Instrument", "kw": ["guitar", "drum", "flute", "piano", "乐器", "吉他", "鼓", "笛"]},
+          {"zh": "玩具", "en": "Toy", "kw": ["toy", "doll", "ball", "玩具", "娃娃", "球"]}
+        ]},
+        "material": {"zh": "材质", "en": "Material", "items": [
+          {"zh": "木质", "en": "Wood", "kw": ["wood", "wooden", "木"]},
+          {"zh": "金属", "en": "Metal", "kw": ["metal", "iron", "steel", "gold", "金属", "铁", "钢", "金"]},
+          {"zh": "陶瓷", "en": "Ceramic", "kw": ["ceramic", "porcelain", "clay", "陶瓷", "瓷", "陶"]},
+          {"zh": "布革", "en": "Cloth/Leather", "kw": ["cloth", "fabric", "leather", "布", "皮革"]},
+          {"zh": "石质", "en": "Stone", "kw": ["stone", "rock", "marble", "石", "岩石"]}
+        ]}
+      }
+    },
+    "vegetation": {
+      "zh": "植被", "en": "Vegetation",
+      "groups": {
+        "kind": {"zh": "植被类型", "en": "Kind", "items": [
+          {"zh": "乔木", "en": "Tree", "kw": ["tree", "树", "乔木"]},
+          {"zh": "灌木", "en": "Bush", "kw": ["bush", "shrub", "灌木", "丛"]},
+          {"zh": "草", "en": "Grass", "kw": ["grass", "草"]},
+          {"zh": "花卉", "en": "Flower", "kw": ["flower", "blossom", "花", "花卉"]},
+          {"zh": "花坛", "en": "Flowerbed", "kw": ["flowerbed", "planter", "花坛", "花圃"]},
+          {"zh": "藤蔓", "en": "Vine", "kw": ["vine", "creeper", "ivy", "藤", "爬山虎"]},
+          {"zh": "作物", "en": "Crop", "kw": ["crop", "wheat", "corn", "carrot", "作物", "麦", "玉米", "萝卜"]},
+          {"zh": "苔藓菌类", "en": "Moss/Mushroom", "kw": ["moss", "mushroom", "fungus", "苔藓", "蘑菇"]},
+          {"zh": "枯木", "en": "Deadwood", "kw": ["dead", "log", "stump", "枯木", "朽木", "树桩"]}
+        ]},
+        "season": {"zh": "季相", "en": "Season", "items": [
+          {"zh": "常青", "en": "Evergreen", "kw": ["evergreen", "常青"]},
+          {"zh": "落叶", "en": "Deciduous", "kw": ["deciduous", "落叶"]},
+          {"zh": "枯黄", "en": "Withered", "kw": ["dry", "withered", "枯黄", "干枯"]}
+        ]}
+      }
+    },
+    "ground": {
+      "zh": "地面", "en": "Ground",
+      "groups": {
+        "kind": {"zh": "地面类型", "en": "Kind", "items": [
+          {"zh": "地形", "en": "Terrain", "kw": ["terrain", "hill", "mountain", "地形", "山", "丘"]},
+          {"zh": "道路", "en": "Road", "kw": ["road", "path", "street", "路", "街道", "小径"]},
+          {"zh": "水面", "en": "Water", "kw": ["water", "river", "lake", "pond", "水", "河", "湖", "池"]},
+          {"zh": "沙滩", "en": "Beach", "kw": ["beach", "sand", "沙滩", "沙"]},
+          {"zh": "雪地", "en": "Snow", "kw": ["snow", "ice", "雪", "冰"]},
+          {"zh": "田地", "en": "Field", "kw": ["field", "farm", "田", "农田"]},
+          {"zh": "广场", "en": "Plaza", "kw": ["plaza", "square", "courtyard", "广场", "庭院"]}
+        ]}
+      }
+    },
+    "animal": {
+      "zh": "动物", "en": "Animal",
+      "groups": {
+        "kind": {"zh": "动物类型", "en": "Kind", "items": [
+          {"zh": "猫科", "en": "Feline", "kw": ["cat", "tiger", "lion", "猫", "虎", "狮"]},
+          {"zh": "犬科", "en": "Canine", "kw": ["dog", "wolf", "fox", "狗", "狼", "狐"]},
+          {"zh": "鸟类", "en": "Bird", "kw": ["bird", "chicken", "duck", "eagle", "鸟", "鸡", "鸭", "鹰"]},
+          {"zh": "家畜", "en": "Livestock", "kw": ["cow", "pig", "sheep", "goat", "horse", "牛", "猪", "羊", "马"]},
+          {"zh": "鱼类", "en": "Fish", "kw": ["fish", "鱼"]},
+          {"zh": "昆虫", "en": "Insect", "kw": ["insect", "bug", "bee", "butterfly", "虫", "蜂", "蝶"]},
+          {"zh": "奇幻生物", "en": "Fantasy", "kw": ["dragon", "slime", "goblin", "龙", "史莱姆", "哥布林"]}
+        ]}
+      }
+    },
+    "vehicle": {
+      "zh": "载具", "en": "Vehicle",
+      "groups": {
+        "kind": {"zh": "载具类型", "en": "Kind", "items": [
+          {"zh": "马车", "en": "Cart", "kw": ["cart", "wagon", "carriage", "马车", "推车"]},
+          {"zh": "船", "en": "Boat", "kw": ["boat", "ship", "船"]},
+          {"zh": "车", "en": "Car", "kw": ["car", "truck", "车"]},
+          {"zh": "飞行", "en": "Aircraft", "kw": ["airship", "balloon", "飞艇", "气球"]}
+        ]}
+      }
+    },
+    "environment": {
+      "zh": "环境", "en": "Environment",
+      "groups": {
+        "kind": {"zh": "环境类型", "en": "Kind", "items": [
+          {"zh": "天空", "en": "Sky", "kw": ["sky", "cloud", "天", "云"]},
+          {"zh": "水体", "en": "Waterbody", "kw": ["ocean", "waterfall", "海", "瀑布"]},
+          {"zh": "室内", "en": "Interior", "kw": ["room", "interior", "室内", "房间"]},
+          {"zh": "洞穴", "en": "Cave", "kw": ["cave", "洞"]},
+          {"zh": "场景道具", "en": "Setpiece", "kw": ["stage", "set", "舞台", "布景"]}
+        ]}
+      }
+    },
+    "sky": {"zh": "天空", "en": "Sky", "groups": {"kind": {"zh": "类型", "en": "Kind", "items": [
+      {"zh": "云", "en": "Cloud", "kw": ["cloud", "云"]},
+      {"zh": "日月星", "en": "Celestial", "kw": ["sun", "moon", "star", "日", "月", "星"]},
+      {"zh": "天穹", "en": "Dome", "kw": ["dome", "skydome", "天穹", "天幕"]}
+    ]}}},
+    "material": {"zh": "材质", "en": "Material", "groups": {"kind": {"zh": "类型", "en": "Kind", "items": [
+      {"zh": "漫反射", "en": "Diffuse", "kw": ["diffuse", "albedo", "漫反射"]},
+      {"zh": "法线", "en": "Normal", "kw": ["normal", "法线"]},
+      {"zh": "PBR", "en": "PBR", "kw": ["pbr", "roughness", "metallic", "粗糙度", "金属度"]}
+    ]}}},
+    "effect": {"zh": "特效", "en": "Effect", "groups": {"kind": {"zh": "类型", "en": "Kind", "items": [
+      {"zh": "粒子", "en": "Particle", "kw": ["particle", "粒子"]},
+      {"zh": "火焰", "en": "Fire", "kw": ["fire", "flame", "火", "火焰"]},
+      {"zh": "烟雾", "en": "Smoke", "kw": ["smoke", "烟"]},
+      {"zh": "光效", "en": "Light", "kw": ["glow", "light", "光", "辉光"]},
+      {"zh": "水花", "en": "Splash", "kw": ["splash", "水花", "溅"]}
+    ]}}}
+  }
+}

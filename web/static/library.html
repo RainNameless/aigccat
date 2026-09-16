@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="aRrXX7eDAp6QwUt1916csN">
+<head data-page-node-id="h6K49mhbHVY527K3EPRbGN">
+<meta charset="UTF-8" data-page-node-id="yVCI4xlNEi3KCL1iFMMzcy">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="R4MO7hoM9QmhWglx3SQATY">
+<title>aigccat · 资产工作台</title>
+<style>
+  :root {
+    --bg: #070b14; --panel: rgba(15,23,42,.72); --line: rgba(103,232,249,.14);
+    --txt: #e2e8f0; --dim: #64748b; --cyan: #22d3ee; --purple: #a78bfa;
+    --ok: #34d399; --warn: #fbbf24; --bad: #fb7185;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", sans-serif; color: var(--txt);
+    background:
+      radial-gradient(1000px 500px at 80% -10%, rgba(167,139,250,.12), transparent 60%),
+      radial-gradient(800px 400px at 10% 0%, rgba(34,211,238,.10), transparent 55%),
+      var(--bg);
+    min-height: 100vh;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none;
+    background-image: linear-gradient(rgba(103,232,249,.04) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(103,232,249,.04) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse at 50% 0%, #000 30%, transparent 75%);
+  }
+  header {
+    display: flex; align-items: center; gap: 14px; padding: 16px 30px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(7,11,20,.7); backdrop-filter: blur(14px);
+    position: sticky; top: 0; z-index: 10;
+  }
+  header h1 {
+    font-size: 17px; font-weight: 700; letter-spacing: .5px; cursor: pointer;
+    background: linear-gradient(90deg, var(--cyan), var(--purple));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  header .tag { font-size: 11px; color: var(--dim); letter-spacing: 2px; text-transform: uppercase; }
+  #ledger { margin-left: auto; font: 12px ui-monospace, monospace; color: var(--cyan); opacity: .85; }
+  main { max-width: 1160px; margin: 30px auto; padding: 0 26px; position: relative; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 24px 28px; margin-bottom: 20px; backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0,0,0,.35);
+  }
+  .card h2 { font-size: 14px; letter-spacing: 1.5px; margin-bottom: 16px; color: #cbd5e1; font-weight: 600; }
+  .card h2::before { content: "▸ "; color: var(--cyan); }
+  label { display: block; font-size: 12px; color: var(--dim); margin: 12px 0 5px; letter-spacing: .5px; }
+  textarea, input, select {
+    padding: 10px 13px; border-radius: 9px; font-size: 14px; font-family: inherit;
+    background: rgba(2,6,23,.6); border: 1px solid rgba(103,232,249,.18); color: var(--txt);
+    outline: none; transition: border-color .2s, box-shadow .2s;
+  }
+  textarea:focus, input:focus, select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(34,211,238,.12); }
+  textarea, input { width: 100%; }
+  textarea { resize: vertical; min-height: 72px; }
+  select option { background: #0f172a; }
+  .row { display: flex; gap: 14px; } .row > div { flex: 1; }
+  button {
+    padding: 10px 24px; border: 0; border-radius: 9px; font-size: 14px; cursor: pointer;
+    background: linear-gradient(135deg, #0891b2, #7c3aed); color: #fff; font-weight: 600;
+    box-shadow: 0 4px 18px rgba(34,211,238,.25); transition: transform .15s, box-shadow .2s;
+  }
+  button:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(124,58,237,.35); }
+  button.sm { padding: 6px 14px; font-size: 13px; font-weight: 500; }
+  button.ghost { background: transparent; border: 1px solid rgba(103,232,249,.4); color: var(--cyan); box-shadow: none; }
+  button.warn { background: linear-gradient(135deg, #b45309, #dc2626); }
+  button:disabled { background: #334155; box-shadow: none; cursor: not-allowed; transform: none; }
+  a.dl { padding: 6px 14px; font-size: 13px; border: 1px solid rgba(103,232,249,.4); color: var(--cyan); border-radius: 9px; text-decoration: none; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .chip {
+    padding: 5px 13px; font-size: 12px; border-radius: 999px; cursor: pointer;
+    border: 1px solid rgba(167,139,250,.35); color: #c4b5fd; background: rgba(167,139,250,.08);
+    transition: all .15s;
+  }
+  .chip:hover, .chip.on { border-color: var(--purple); background: rgba(167,139,250,.2); color: #fff; box-shadow: 0 0 12px rgba(167,139,250,.25); }
+  .chip.ex { border-color: rgba(103,232,249,.25); color: #67e8f9; background: rgba(34,211,238,.06); }
+  .chip.ex:hover { border-color: var(--cyan); box-shadow: 0 0 12px rgba(34,211,238,.2); }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+  th, td { text-align: left; padding: 10px; border-bottom: 1px solid rgba(100,116,139,.12); }
+  th { color: var(--dim); font-weight: 500; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+  tr[data-id]:hover td { background: rgba(34,211,238,.04); }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; margin-right: 4px;
+    background: rgba(34,211,238,.12); color: var(--cyan); border: 1px solid rgba(34,211,238,.25); }
+  .badge.st { background: rgba(52,211,153,.1); color: var(--ok); border-color: rgba(52,211,153,.25); }
+  .badge.pub { background: rgba(251,113,133,.1); color: var(--bad); border-color: rgba(251,113,133,.25); }
+  .badge.app { background: rgba(251,191,36,.1); color: var(--warn); border-color: rgba(251,191,36,.25); }
+  #msg { margin-top: 12px; font-size: 13px; white-space: pre-wrap; }
+  .ok { color: var(--ok); } .fail { color: var(--bad); }
+  .muted { color: var(--dim); font-size: 12px; }
+  .views { display: flex; gap: 12px; }
+  .views figure { flex: 1; margin: 0; min-width: 0; text-align: center; }
+  .views img { width: 100%; height: clamp(140px, 28vw, 360px); object-fit: contain; border: 1px solid var(--line); border-radius: 10px; background: #0b1120; }
+  .views figcaption { font-size: 11px; color: var(--dim); margin-top: 5px; letter-spacing: 1px; }
+  .glb-half { flex: 1; min-width: 0; height: clamp(360px, 48vh, 560px); border: 1px solid var(--line); border-radius: 12px; background: #0a0f1d; }
+  .cmp { display: flex; gap: 12px; }
+  pre { background: rgba(2,6,23,.7); border: 1px solid var(--line); border-radius: 10px; padding: 14px;
+    font: 12px ui-monospace, monospace; color: #94a3b8; overflow: auto; max-height: 240px; }
+  .ops { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
+  a.back { font-size: 13px; color: var(--cyan); text-decoration: none; }
+  textarea.code { font-family: ui-monospace, monospace; font-size: 12px; min-height: 220px; }
+  .toolbar { display: flex; gap: 14px; align-items: center; font-size: 12px; color: var(--dim); }
+  .toolbar input[type=checkbox] { width: auto; accent-color: var(--cyan); }
+  .stat { font: 12px ui-monospace, monospace; color: #67e8f9; }
+  /* Asset workspace: quiet surfaces, strong hierarchy, resource-first layout. */
+  :root { --dim:#94a3b8; --line:rgba(148,163,184,.17); }
+  body::before { display:none; }
+  main:has(.workspace-head) { max-width:1600px; margin:26px auto; }
+  .workspace-head { display:flex; justify-content:space-between; gap:20px; align-items:center; margin-bottom:24px; }
+  .workspace-head h2 { font-size:28px; letter-spacing:-1px; margin:6px 0; }
+  .eyebrow { color:var(--cyan); font-size:11px; letter-spacing:2px; }
+  .workspace-head p { color:var(--dim); font-size:13px; line-height:1.8; }
+  .workspace-layout { display:grid; grid-template-columns:210px minmax(0,1fr); gap:20px; align-items:start; }
+  .workspace-layout .card { padding:20px; box-shadow:none; }
+  .workspace-sidebar { position:sticky; top:84px; max-height:calc(100vh - 110px); overflow:auto; }
+  .workspace-sidebar #tx-types { display:grid; gap:5px; }
+  .workspace-sidebar #tx-types .chip { border-radius:8px; padding:10px 12px; border-color:transparent; background:transparent; }
+  .workspace-sidebar #tx-types .chip.on { background:rgba(34,211,238,.1); border-color:rgba(34,211,238,.3); box-shadow:none; color:var(--cyan); }
+  .workspace-sidebar #tx-sub { border-top:1px solid var(--line); padding-top:14px; }
+  .workspace-sidebar #tx-sub:empty { display:none; }
+  @media(max-width:520px) { header a, header button { white-space:nowrap; flex-shrink:0; } header h1 { margin-right:0; } }
+  .workspace-panel { min-width:0; }
+  .workspace-panel h2 { display:flex; align-items:center; flex-wrap:wrap; gap:10px; letter-spacing:0; }
+  .workspace-panel h2::before { content:none; }
+  .workspace-panel #view-toggle { margin-left:auto; }
+  .library-tools { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; }
+  .library-tools input { flex:1 1 220px; width:auto; }
+  .library-tools select { max-width:180px; }
+  .library-tools button { padding:8px 12px; }
+  .workspace-panel table { table-layout:auto; }
+  .workspace-panel td.stat { overflow-wrap:anywhere; }
+  input[type=checkbox] { width:16px; height:16px; accent-color:var(--cyan); cursor:pointer; }
+  .asset-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px; }
+  .gcard { position:relative; overflow:hidden; border:1px solid var(--line); border-radius:12px; padding:10px; background:#101827; cursor:pointer; transition:border-color .2s,transform .2s; }
+  .gcard:hover { transform:translateY(-3px); border-color:var(--cyan); }
+  .gcard:has(.ck:checked) { border-color:var(--cyan); background:#102a36; }
+  .gcard .ck { position:absolute; top:18px; left:18px; z-index:1; }
+  .gcard .stat { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .preview-empty { aspect-ratio:1; display:grid; place-items:center; background:#0b1120; color:var(--dim); border-radius:8px; font-size:12px; }
+  #batchbar { position:sticky; top:70px; z-index:3; background:#152638; border:1px solid #266077; padding:12px; border-radius:10px; margin:0 0 14px; }
+  details.workspace-settings { padding:16px 22px; box-shadow:none; }
+  details.workspace-settings:not([open]) { display:none; }
+  details.workspace-settings summary { cursor:pointer; font-size:14px; color:#cbd5e1; }
+  details.workspace-settings[open] summary { margin-bottom:18px; }
+  .workspace-head .ops { margin:0; }
+  button { box-shadow:none; background:#087f99; }
+  button:hover { box-shadow:none; }
+  header a[aria-current=page] { background:rgba(34,211,238,.12); color:var(--cyan)!important; }
+  @media(max-width:900px) { .workspace-layout { grid-template-columns:1fr; } .workspace-sidebar { position:static; max-height:none; } .workspace-sidebar #tx-types { display:flex; flex-wrap:wrap; } header .tag,#ledger { display:none; } .row { flex-wrap:wrap; } .row>div { flex-basis:220px; } .workspace-head { align-items:flex-start; } main { padding:0 14px; } .workspace-panel { overflow-x:auto; } }
+  @media(max-width:520px) { header { gap:8px; padding:14px 12px; flex-wrap:wrap; } .workspace-head { flex-direction:column; } .asset-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .workspace-layout .card { padding:12px; } .views,.cmp { flex-direction:column; } }
+
+  main:has(.detail-layout) { max-width:1680px; }
+  .detail-layout { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:18px; align-items:start; }
+  .detail-layout .card { padding:16px; box-shadow:none; }
+  .detail-aside { min-width:0; }
+  .detail-aside .views { gap:6px; }
+  .detail-aside .views img { height:130px; }
+  .detail-aside .ops { gap:6px; }
+  .detail-aside button { padding:7px 10px; font-size:12px; }
+  .detail-fold { padding:16px 20px; overflow:auto; }
+  summary { cursor:pointer; color:#cbd5e1; }
+  .detail-fold[open]>summary { margin-bottom:18px; }
+  .model-viewer.glb-half { height:clamp(530px,75vh,900px); min-width:0; }
+  .model-viewer { display:flex; flex-direction:column; overflow:hidden; background:#0a0f1d; }
+  .model-viewer:fullscreen { width:100vw; height:100vh; border:0; border-radius:0; }
+  .viewer-stage { flex:1; min-height:220px; position:relative; outline:none; }
+  .viewer-stage:focus-visible { outline:1px solid var(--cyan); }
+  .viewer-stage canvas { display:block; width:100%; height:100%; touch-action:none; }
+  .viewer-tools { display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:10px; background:#111b2b; }
+  .viewer-tools button,.viewer-tools select { padding:5px 8px; font-size:12px; }
+  .viewer-tools label { display:inline-flex; align-items:center; gap:4px; margin:0; font-size:12px; }
+  .viewer-tools input[type=color] { width:36px; height:26px; padding:2px; }
+  .viewer-tools input[type=range] { width:100px; }
+  .viewer-tools details { font-size:12px; }
+  .viewer-note,.viewer-stats { font-size:11px; color:#94a3b8; padding:5px 10px; line-height:1.6; }
+  .gcard>div:not(.preview-empty) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gcard img { display:block; }
+  #ledger { display:none; }
+  @media(max-width:1000px) { .detail-layout { grid-template-columns:1fr; } .detail-aside { display:grid; grid-template-columns:1fr 1fr; gap:14px; } }
+  @media(max-width:600px) { .detail-aside { display:block; } .cmp { flex-direction:column; } .glb-half { flex:auto; } .detail-aside .views { flex-direction:row; } .model-viewer.glb-half { height:560px; } }
+
+  /* 创建结果：成功后明确展示，避免被重渲染清掉 */
+  .create-result { margin-top:14px; padding:14px 16px; border:1px solid rgba(52,211,153,.45);
+    border-radius:10px; background:rgba(52,211,153,.07); }
+  .create-result .cr-title { font-size:14px; font-weight:600; color:var(--ok); margin-bottom:8px; }
+  .create-result .cr-kv { font-size:13px; line-height:1.9; overflow-wrap:anywhere; }
+  .create-result .cr-next { margin-top:8px; font-size:12px; color:var(--dim); line-height:1.8; }
+  /* 参考图：单张操作入口 + 缺失占位（缺图不替换整张卡片，保留操作按钮） */
+  .views figure .ref-missing { height:100%; min-height:140px; display:flex; align-items:center;
+    justify-content:center; border:1px dashed var(--line); border-radius:10px; color:var(--dim); font-size:12px; }
+  .views figure button { margin-top:6px; width:100%; font-size:12px; padding:5px 4px; }
+  .create-result .cr-fix { margin-top:6px; font-size:12px; color:#cbd5e1; line-height:1.8; }
+  /* 建模未接入（501）提示：不隐藏 501，给出可行路径 */
+  .model-alert { border:2px solid var(--warn); background:rgba(251,191,36,.08); }
+  .model-alert h3 { font-size:15px; color:var(--warn); margin-bottom:8px; }
+  .model-alert p { font-size:13px; line-height:1.8; }
+  .model-alert .ops { margin-top:10px; }
+  .model-alert .ops input[type=file] { flex:0 1 260px; }
+  .model-alert .ops input[type=text] { flex:0 1 200px; }
+  .model-alert .ops button { flex:0 0 auto; }
+  /* 任务处理中提示（只读核对，不触发生成） */
+  #runbar { border-color:rgba(251,191,36,.38); }
+  #runbar .rw-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    font-size:13px; padding:7px 0; border-bottom:1px solid var(--line); }
+  #runbar .rw-row:last-child { border-bottom:0; }
+  .badge.busy { background:rgba(251,191,36,.12); color:var(--warn); border-color:rgba(251,191,36,.35); }
+  /* 修改历史树 / 任务检查点 */
+  .hnode { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; padding:7px 10px; margin:3px 0;
+    border:1px solid var(--line); border-radius:8px; background:rgba(2,6,23,.5); }
+  .hnode.head { border-color:rgba(52,211,153,.55); background:rgba(52,211,153,.09); }
+  .hnode .hsum { flex:1 1 180px; font-size:13px; overflow-wrap:anywhere; }
+  .hnode .hmeta { font-size:12px; color:var(--dim); white-space:nowrap; }
+  .hnode button { padding:4px 10px; font-size:12px; }
+  #tasks-body table { font-size:12px; }
+</style>
+<link rel="stylesheet" href="/shell.css?v=13">
+<script src="/vendor/lucide.min.js" defer></script>
+<script src="/shell.js?v=13"></script>
+</head>
+<body data-page-node-id="52s8WGODllVDvNhXXHG2Mj">
+<header data-page-node-id="WIDFOCuqvJFHq0OLR4SbeH">
+  <a href="/">aigccat</a>
+  <span id="ledger" data-page-node-id="H1Gqa4GNbE8JHyyRaNORHd"></span>
+</header>
+<main id="app" data-page-node-id="iTbHEgRR9ZeLyxMvl9LtCp"></main>
+
+<script type="importmap">
+{ "imports": {
+  "three": "/vendor/three-0.160.0/build/three.module.js",
+  "three/addons/": "/vendor/three-0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import { assetImages, imageView } from "./asset-images.js?v=1";
+import { mountProjects } from './project-folders.js?v=2';
+import * as THREE from 'three';
+import { moveToTrash, trashResult } from './asset-trash.js?v=2';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { viewerTools } from './viewer.js?v=opened-cache-19';
+import { mountCanvas } from './canvas.js?v=theme-2';
+
+const app = document.getElementById('app');
+const I18N = {
+  zh: { create:'创建资产', desc:'自然语言描述（中文）*', name:'名称（可选）', type:'类型（可选，留空 AI 自动分类）',
+        style:'风格', stylePreset:'风格预设（点击填入）', generate:'生成描述规格', enrich:'AI 润色描述',
+        taxonomy:'分类编排（大类 → 细分类目）', all:'全部', library:'资产库', gallery:'切换画廊视图',
+        batch:'批量操作', preview:'预览', status:'状态', version:'版本',
+        autoClassify:'自动分类', poster:'海报' },
+  en: { create:'Create Asset', desc:'Natural language description *', name:'Name (optional)',
+        type:'Type (optional, AI auto-classify if empty)', style:'Style', stylePreset:'Style presets (click to fill)',
+        generate:'Generate Spec', enrich:'✨ AI polish', taxonomy:'Taxonomy (class → subcategory)', all:'All',
+        library:'Asset Library', gallery:'Toggle gallery', batch:'Batch',
+        preview:'Preview', status:'Status', version:'Version', autoClassify:'Auto', poster:'poster' }
+};
+const LANG = 'zh';
+const t = k => (I18N[LANG] && I18N[LANG][k]) || k;
+const $ = id => document.getElementById(id);
+const api = (p, opt) => fetch(p, opt).then(async r => {
+  const t = await r.text();
+  let d; try { d = JSON.parse(t); } catch { d = t; }
+  if (!r.ok) {
+    // 保留 HTTP 状态码：501（自有图生 3D 未接入）需要走专门提示，不能被当成普通失败吞掉
+    const err = new Error(typeof d === 'string' ? d : JSON.stringify(d));
+    err.status = r.status;
+    throw err;
+  }
+  return d;
+});
+function settingsGuide(element, text) {
+  if (!element || !String(text).includes('/settings.html')) return;
+  const link = document.createElement('a');
+  link.href = '/settings.html'; link.className = 'back'; link.textContent = '前往服务设置';
+  element.append(document.createTextNode(' '), link);
+}
+const msg = (t, ok) => { const m = $('msg'); if (m) { m.textContent = t; m.className = ok ? 'ok' : 'fail'; if (!ok) settingsGuide(m, t); } };
+const isStub = meta => /stub/i.test(String(meta?.provider || '')) || meta?.stub === true;
+const DIR_OF = { character:'characters', animal:'animals', prop:'props', building:'buildings',
+  environment:'environments', vegetation:'vegetation', ground:'grounds', sky:'skies',
+  vehicle:'vehicles', material:'materials', effect:'effects', apparel:'apparel' };
+const TYPES = Object.keys(DIR_OF);
+const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CATEGORY_ZH = {character:'角色',animal:'动物',prop:'道具',building:'建筑',environment:'环境',vegetation:'植被',ground:'地面',sky:'天空',vehicle:'载具',material:'材质',effect:'特效',male:'男性',female:'女性',child:'儿童',adult:'成人',teen:'青少年',teenager:'青少年',elderly:'老年',unisex:'不限性别',unknown:'未分类',other:'其他'};
+const category = value => CATEGORY_ZH[value] || CATEGORY_ZH[Object.keys(DIR_OF).find(k=>DIR_OF[k]===value)] || (/[^\x00-\x7F]/.test(value || '') ? value : '其他分类');
+const STATUS_ZH = {spec_ready:'描述就绪',reference_review:'参考图已生成',reference_approved:'参考图已就绪',model_review:'模型已生成',approved:'模型已生成',published:'已发布',pending:'等待中',queued:'排队中',running:'处理中',processing:'处理中',completed:'已完成',done:'已完成',succeeded:'已成功',success:'已成功',failed:'失败',error:'出错',imported:'已导入',ready:'已就绪',draft:'草稿',cancelled:'已取消'};
+CATEGORY_ZH.test = 'test';
+CATEGORY_ZH.demo = 'Demo';
+CATEGORY_ZH.apparel = '服装';
+const assetStatus = a => ['queued','running','pending','processing','waiting','unknown','failed'].includes(a.generation?.status) ? a.generation.status : a.status;
+const assetStatusText = a => {
+  const g=a.generation, kind=g?.kind==='model_build'||g?.provider==='tripo'?'模型':'图片';
+  return ({running:kind+'生成中',queued:'排队中',pending:'等待中',processing:kind+'生成中',waiting:'待查询原任务',unknown:'提交待确认',failed:kind+'生成失败',done:a.version?statusZh(a.status):'图片已生成'})[g?.status] || statusZh(a.status);
+};
+const statusZh = value => STATUS_ZH[value] || '其他状态';
+const JOB_KIND_ZH = {spec_generate:'描述生成',reference_generate:'参考图生成',reference_approve:'参考图批准',
+  model_generate:'模型生成',model_validate_failed:'模型校验失败',anchor_set:'设置锚点',latest_set:'版本指针',
+  approved_set:'批准版本',published_set:'发布版本',compile:'引擎包编译',ai_modify:'AI 修改描述',
+  spec_edit:'描述编辑',import:'资产导入',import_version:'版本导入',
+  model_plan:'建模计划生成',model_build:'模型生成',model_process:'减面 / 重拓扑'};
+const jobKindZh = value => JOB_KIND_ZH[value] || value || '未分类任务';
+// 仍在服务端处理中的任务状态（只读核对，不触发也不重试任何生成）
+const ACTIVE_JOB = ['running','pending','queued','processing'];
+const isActiveJob = j => ACTIVE_JOB.includes(String(j?.status ?? ''));
+const elapsedText = startSec => {
+  if (!startSec) return '—';
+  const s = Math.max(0, Math.floor(Date.now() / 1000 - Number(startSec)));
+  const m = Math.floor(s / 60);
+  return m ? `${m} 分 ${s % 60} 秒` : `${s} 秒`;
+};
+// 相对时间（历史节点 / 任务列表）：秒 / 分钟 / 小时 / 天前
+const relTime = ts => {
+  const n = Number(ts); if (!n) return '—';
+  const s = Math.max(0, Math.floor(Date.now() / 1000 - n));
+  if (s < 60) return `${s} 秒前`;
+  const m = Math.floor(s / 60); if (m < 60) return `${m} 分钟前`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h} 小时前`;
+  return `${Math.floor(h / 24)} 天前`;
+};
+// 409 stale_head（历史 HEAD 乐观锁）→ 固定提示文案；其余 409 返回 null 走原有错误提示
+const staleHeadText = e => {
+  if (!e || e.status !== 409) return null;
+  try {
+    const d = JSON.parse(e.message);
+    if (d && d.error === 'stale_head')
+      return `工作区已被其他修改更新（期望 ${d.expected || '?'} 实际 ${d.actual || '无'}），请刷新历史后重试`;
+  } catch {}
+  return null;
+};
+// 历史节点操作者 / 任务检查点状态的中文文案
+const ACTOR_ZH = { user: '用户', agent: 'AI', system: '系统' };
+const TASK_STATUS_ZH = { running: '进行中', waiting_user: '等待用户', done: '已完成', failed: '失败' };
+const latestRefJob = records => records.filter(j => j.kind === 'reference_generate')
+  .sort((a, b) => (Number(b.created_at) - Number(a.created_at)) || String(b.job_id).localeCompare(String(a.job_id)))[0];
+// Blender 建模 / 减面重拓扑：与参考图任务一样是后台异步任务，需要同样的只读核对
+const MODEL_JOB_KINDS = ['model_build', 'model_process'];
+const latestModelJob = records => records.filter(j => MODEL_JOB_KINDS.includes(j.kind))
+  .sort((a, b) => (Number(b.created_at) - Number(a.created_at)) || String(b.job_id).localeCompare(String(a.job_id)))[0];
+const noticeOf = j => MODEL_JOB_KINDS.includes(j && j.kind) ? '建模任务进行中' : '参考图生成进行中';
+const OP_ZH = {build:'构建', decimate:'减面', remesh:'重拓扑'};
+const PHASE_ZH = {queued:'排队中', worker:'Blender 执行中', validate:'校验模型', done:'已完成'};
+// 后端服务状态（含 Blender 工作器可达性）：只读，用于决定建模入口是否可用
+const servicesStatus = () => api('/api/settings/services').catch(() => null);
+// 任务起始时间：优先 started_at（后台任务写入），回退 created_at
+const jobStartedAt = j => Number(j?.started_at) || Number(j?.created_at) || 0;
+// 只读：GET /api/assets/{dir}/{id} + jobs/*.json，不触碰任何收费生成接口
+async function loadJobRecords(dir, id) {
+  const dd = await api(`/api/assets/${dir}/${id}`);
+  const records = [];
+  let unreadable = false;
+  for (const jf of dd.jobs || []) {
+    // 优先走后端 job 读取接口（会做陈旧判定）；失败回退到只读文件代理
+    try { records.push(await api(`/api/assets/${dir}/${id}/jobs/${String(jf).replace(/\.json$/, '')}`)); continue; } catch {}
+    try { records.push(await api(`/api/assets/${dir}/${id}/file/jobs/${jf}`)); }
+    catch { unreadable = true; }
+  }
+  return { asset: dd.asset || {}, records, unreadable };
+}
+// 关注中的生成任务：key = `${dir}/${id}`，仅用于展示处理中状态与已等待时间
+const jobWatch = new Map();
+const watchKey = (dir, id) => `${dir}/${id}`;
+const hasActiveWatch = () => [...jobWatch.values()].some(w => ACTIVE_JOB.includes(String(w.status)));
+// 只把「仍在处理中」的关注项写入 localStorage：刷新页面后仍能继续核对，结束即不再留存
+const WATCH_STORE = 'aigccat_job_watch_v1';
+function persistWatch() {
+  try {
+    const active = [...jobWatch.entries()]
+      .filter(([, w]) => ACTIVE_JOB.includes(String(w.status)))
+      .map(([key, w]) => ({ key, dir: w.dir, id: w.id, status: w.status, startedAt: w.startedAt }));
+    localStorage.setItem(WATCH_STORE, JSON.stringify(active));
+  } catch {}
+}
+function restoreWatch() {
+  try {
+    for (const w of JSON.parse(localStorage.getItem(WATCH_STORE) || '[]') || []) {
+      if (w?.dir && w?.id) jobWatch.set(w.key || watchKey(w.dir, w.id),
+        { dir: w.dir, id: w.id, status: w.status || 'running', jobId: null, startedAt: w.startedAt, error: '' });
+    }
+  } catch {}
+}
+const setWatch = (key, value) => { jobWatch.set(key, value); persistWatch(); };
+const dropWatch = key => { jobWatch.delete(key); persistWatch(); };
+restoreWatch();
+const hasZh = value => /[\u3400-\u9fff]/.test(value || '');
+const numberOf = a => String(a.asset_id || '').match(/(\d+)$/)?.[1] || String(a.asset_id || '').slice(-6);
+const displayName = a => [a.name_zh,a.name_cn,a.display_name,a.name].find(v=>typeof v==='string' && v.trim()) || a.asset_id;
+let detailEpoch = 0, detailCleanup = () => {};
+// 建模未接入（后端返回 501）记录：key=`${dir}/${id}`，仅用于前端给出可行路径，不代表后端状态已改变
+let modelUnavailable = null;
+const isModelUnavailable = (dir, id) => !!modelUnavailable && modelUnavailable.key === watchKey(dir, id);
+// 一次性提示：跨详情重渲染仍展示一次，避免被后台任务核对消息覆盖
+let detailFlash = null;
+// provider 不能带占位字样，否则后端 reject_stub_meta 会直接拒绝
+const BAD_PROVIDER = /stub|placeholder|batch/i;
+// 资产库的任务核对定时器（10 秒只读核对 + 1 秒刷新已等待时间），离开页面即清理
+let libPollTimer = null, libTickTimer = null;
+function stopLibraryWatch() { clearInterval(libPollTimer); clearInterval(libTickTimer); libPollTimer = libTickTimer = null; }
+
+const STYLE_PRESETS = [
+  ['卡通','cartoon'],['Q版','chibi'],['写实','realistic'],['低多边形','low_poly'],
+  ['像素风','pixel_art'],['赛博朋克','cyberpunk'],['中国风','chinese_style'],['蒸汽朋克','steampunk']];
+const EXAMPLES = [
+  '11岁的小女孩，学生装，1.38米，偏写实卡通风格，背书包',
+  '一座两层的乡村小木屋，带烟囱和门廊，温馨卡通风格',
+  '赛博朋克风格的悬浮摩托，霓虹灯管，做旧金属',
+  '低多边形风格的橡树，可用于场景植被'];
+
+async function refreshLedger() {
+  try {
+    const d = await api('/api/ledger');
+    $('ledger').textContent = `TOKENS ${d.ledger.total_tokens}/${d.budget_tokens} · CALLS ${d.ledger.calls}`;
+  } catch {}
+}
+
+// ---------- 资产库 ----------
+async function pageLibrary() {
+  const epoch=detailEpoch;
+  const alive=()=>epoch===detailEpoch;
+  let allAssets = [], imageRefreshBusy = false, projects;
+  const refreshLibrary = async () => {
+    if (!alive() || document.hidden || imageRefreshBusy) return;
+    imageRefreshBusy = true;
+    try {
+      const [assets, state, taxonomy] = await Promise.all([api('/api/assets'), api('/api/workbench/state'), api('/api/taxonomy')]);
+      if (!alive()) return;
+      const projectsChanged=JSON.stringify(projects?.state().asset_projects)!==JSON.stringify(state.asset_projects) || JSON.stringify(projects?.state().project_folders)!==JSON.stringify(state.project_folders);
+      projects?.update(state);
+      const changed = JSON.stringify(assets.assets || []) !== JSON.stringify(allAssets) || JSON.stringify(state.archived || []) !== JSON.stringify([...archived]);
+      if (changed || projectsChanged) {
+        allAssets = assets.assets || []; archived = new Set(state.archived || []); tax=taxonomy;
+        fillStatuses(); drawTypes(); drawSub(); renderList();
+      }
+    } catch (e) { if (alive()) $('batchmsg').textContent = '资产同步失败，保留上次结果：'+e.message; }
+    finally { imageRefreshBusy = false; }
+  };
+  const imageRefreshTimer = setInterval(refreshLibrary, 10000);
+  const onVisible = () => { if (!document.hidden) refreshLibrary(); };
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('focus', onVisible);
+  detailCleanup = () => { clearInterval(imageRefreshTimer); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', onVisible); stopLibraryWatch(); };
+  app.innerHTML = `
+  <section class="workspace-head"><div><h2>资产库</h2></div><div class="ops"><button id="open-create">＋ 创建资产</button><button class="ghost" id="open-images">图片资源</button></div>  </section>
+  <div class="card" id="runbar" style="display:none">
+    <h2>生成任务处理中</h2>
+    <div id="runbar-list"></div>
+    <div class="muted" style="margin-top:8px; line-height:1.8">每 10 秒读取一次任务状态（只读，不会触发或重试任何收费生成）。离开本页后停止核对。</div>
+  </div>
+  <div class="workspace-layout">
+  <aside class="card workspace-sidebar">
+    <div id="project-folders"></div><h2>资源分类</h2>
+    <div class="chips" id="tx-types"></div>
+    <div class="chips" id="tx-sub" style="margin-top:8px"></div>
+  </aside>
+  <section class="card workspace-panel">
+    <h2>资产库 <span class="muted" id="count"></span>
+      <button class="sm ghost" id="view-toggle" style="float:right">切换画廊视图</button></h2>
+    <div class="library-tools"><input id="asset-search" type="search" aria-label="搜索资产" placeholder="搜索名称、编号、分类…"><select id="status-filter" aria-label="状态筛选"><option value="">全部状态</option></select><select id="asset-sort" aria-label="排序"><option value="original">默认顺序</option><option value="name">按名称排序</option><option value="id">按编号排序</option><option value="missing">缺少预览优先</option></select><button class="sm ghost" id="filter-reset">重置筛选</button><button class="sm ghost" id="asset-refresh">刷新</button></div>
+    <div class="ops" style="margin-bottom:12px"><button class="sm ghost" id="library-trash">回收站</button><button class="sm ghost" id="select-visible">全选当前结果</button><span class="muted">删除后可在回收站恢复</span></div>
+    <div class="ops" id="batchbar" style="display:none">
+      <span class="stat" id="selcount"></span>
+      <button class="sm warn" id="batch-delete">删除所选</button>
+      <details><summary>批量高级操作</summary><div class="ops"><select id="batchop">
+        <option value="regenerate_references">批量重生成三视图</option>
+        <option value="regenerate_models">批量重生成模型</option>
+        <option value="publish">批量发布</option>
+        <option value="rollback">批量回滚</option>
+        <option value="global_style_apply">全局风格套用</option>
+      </select>
+      <button class="sm" id="batchgo">执行批量</button></div></details>
+    </div>
+    <table><thead><tr><th><input type="checkbox" id="ckall"></th><th>预览</th><th>编号</th><th>名称</th><th>类型</th><th>状态</th><th>版本</th></tr></thead>
+    <tbody id="list"></tbody></table>
+    <div id="batchmsg" class="muted" style="margin-top:8px; white-space:pre-wrap" role="status"></div>
+  </section></div>`;
+  $('open-create').onclick = () => { location.href = '/#new=1&tool=model'; };
+  $('open-images').onclick = () => { location.hash = 'images'; };
+  // ---------- 分类编排筛选 ----------
+  let saved = {}; try { saved = JSON.parse(localStorage.getItem('aigccat_library_v2') || '{}') || {}; } catch {}
+  let tax = {}, filter = { dir: saved.dir || '', sub: saved.sub || '' }, gallery = saved.gallery !== false;
+  $('asset-search').value = saved.query || '';
+  $('asset-sort').value = saved.sort || 'original';
+  const saveLibrary = () => localStorage.setItem('aigccat_library_v2', JSON.stringify({ ...filter, gallery, query:$('asset-search').value, sort:$('asset-sort').value, status:$('status-filter').value }));
+  try { tax = await api('/api/taxonomy'); } catch {}
+  if(!alive()) return;
+  function drawTypes() {
+    for (const tag of ['test','demo']) tax[tag] = {_count:allAssets.filter(a=>a.tags?.includes(tag)).length, _items:[]};
+    const typeNames = Object.keys(tax);
+    $('tx-types').innerHTML = ['<span class="chip' + (filter.dir ? '' : ' on') + '" data-dir="">全部</span>']
+      .concat(typeNames.map(d => `<span class="chip${filter.dir === d ? ' on' : ''}" data-dir="${esc(d)}">${esc(category(d))} ${projects ? allAssets.filter(a=>!archived.has(assetRef(a)) && projects.matches(a) && (['test','demo'].includes(d)?a.tags?.includes(d):DIR_OF[a.asset_type]===d)).length : tax[d]._count}</span>`))
+      .join('');
+    $('tx-types').querySelectorAll('.chip').forEach(c => c.onclick = () => {
+      filter.dir = c.dataset.dir; filter.sub = ''; drawTypes(); drawSub(); applyFilter();
+    });
+  }
+  function drawSub() {
+    if (!filter.dir || !tax[filter.dir]) { $('tx-sub').innerHTML = ''; return; }
+    const t = tax[filter.dir];
+    const items = ['<span class="chip ex' + (filter.sub ? '' : ' on') + '" data-sub="">全部</span>'];
+    // 主维度：细分类目；补充：性别 / 年龄
+    Object.entries({ ...(t._subcategories || {}), ...(t._gender || {}), ...(t._age || {}) })
+      .sort((a, b) => b[1] - a[1])
+      .forEach(([k, n]) => {
+        if (k === 'n/a' || (!CATEGORY_ZH[k] && !hasZh(k))) return;
+        items.push(`<span class="chip ex${filter.sub === k ? ' on' : ''}" data-sub="${esc(k)}">${esc(category(k))} ${n}</span>`);
+      });
+    $('tx-sub').innerHTML = items.join('');
+    $('tx-sub').querySelectorAll('.chip').forEach(c => c.onclick = () => {
+      filter.sub = c.dataset.sub; drawSub(); applyFilter();
+    });
+  }
+  function applyFilter() { renderList(); }
+  drawTypes(); drawSub();
+
+  $('view-toggle').onclick = () => { gallery = !gallery; renderList(); };
+  allAssets = (await api('/api/assets')).assets || [];
+  const folderState = await api('/api/workbench/state');
+  let archived = new Set(folderState.archived || []), showTrash = false, deleting = false;
+  const assetRef = a => `${DIR_OF[a.asset_type] || ''}/${a.asset_id}`;
+  projects=mountProjects($('project-folders'),{api,assets:()=>allAssets,ref:assetRef,selected:()=>[...document.querySelectorAll('.ck:checked')].map(c=>c.dataset.ref),onChange:()=>{drawTypes();renderList();}});
+  projects.update(folderState);
+  async function moveAssets(refs, restore = showTrash) {
+    if (deleting || !refs.length) return;
+    deleting = true;
+    $('batch-delete').disabled = true;
+    try {
+      const result = await moveToTrash(api, refs, restore);
+      archived = new Set(result.archived);
+      drawTypes(); await renderList();
+      $('batchmsg').textContent = trashResult(result, restore);
+    } catch(e) { $('batchmsg').textContent = '操作失败：'+e.message; }
+    finally { deleting=false; $('batch-delete').disabled=false; }
+  }
+  $('library-trash').onclick = () => { showTrash=!showTrash; $('library-trash').textContent=showTrash?'返回资产库':'回收站'; $('batch-delete').textContent=showTrash?'恢复所选':'删除所选'; $('batchgo').closest('details').hidden=showTrash; renderList(); };
+  $('select-visible').onclick = () => { document.querySelectorAll('.ck').forEach(c=>c.checked=true); updateBar(); };
+  $('batch-delete').onclick = () => moveAssets([...document.querySelectorAll('.ck:checked')].map(c=>c.dataset.ref));
+  $('list').addEventListener('click', e => {
+    const button=e.target.closest('[data-delete-asset]');
+    if(button) { e.stopPropagation(); moveAssets([button.dataset.deleteAsset]); }
+  }, true);
+  if(!alive()) return;
+  const fillStatuses = (value = $('status-filter').value) => {
+    const statuses = [...new Set(allAssets.map(assetStatus).filter(Boolean))].sort();
+    $('status-filter').replaceChildren(new Option('全部状态', ''), ...statuses.map(s=>new Option(statusZh(s),s)));
+    $('status-filter').value = statuses.includes(value) ? value : '';
+  };
+  fillStatuses(saved.status || ''); drawTypes();
+  $('asset-search').oninput = () => renderList();
+  $('status-filter').onchange = $('asset-sort').onchange = () => renderList();
+  $('filter-reset').onclick = () => { projects.reset(); filter = {dir:'',sub:''}; $('asset-search').value=''; $('status-filter').value=''; $('asset-sort').value='original'; drawTypes(); drawSub(); renderList(); };
+  $('asset-refresh').onclick = async () => { const b=$('asset-refresh'); b.disabled=true; try { allAssets=(await api('/api/assets')).assets || []; const state=await api('/api/workbench/state'); archived=new Set(state.archived||[]); projects.update(state); tax=await api('/api/taxonomy'); fillStatuses(); drawTypes(); drawSub(); renderList(); } catch(e) { $('batchmsg').textContent='刷新失败：'+e.message; } finally { b.disabled=false; } };
+  async function renderList() {
+    const selected = new Set([...document.querySelectorAll('.ck:checked')].map(c=>c.dataset.ref));
+    saveLibrary();
+    $('view-toggle').textContent = gallery ? '列表视图' : '画廊视图';
+    $('view-toggle').setAttribute('aria-pressed', String(gallery));
+    $('list').closest('table').querySelector('thead').style.display = gallery ? 'none' : '';
+    $('batchbar').style.display='none'; $('ckall').checked=false; $('ckall').indeterminate=false;
+    let list = allAssets.filter(a=>archived.has(assetRef(a))===showTrash && projects.matches(a));
+    if (['test','demo'].includes(filter.dir)) list = list.filter(a => a.tags?.includes(filter.dir));
+    if (filter.dir && !['test','demo'].includes(filter.dir)) {
+      const d = filter.dir;
+      list = list.filter(a => (DIR_OF[a.asset_type] || '') === d);
+      if (filter.sub && tax[d] && (tax[d]._items || []).length) {
+        const keep = new Set(tax[d]._items.filter(it =>
+          it.gender === filter.sub || it.age_group === filter.sub || it.apparel_type === filter.sub
+        ).map(it => it.asset_id));
+        list = list.filter(a => keep.has(a.asset_id));
+      }
+    }
+    const query = $('asset-search').value.trim().toLowerCase();
+    if (query) list=list.filter(a=>[a.name,a.asset_id,a.asset_type,displayName(a),category(a.asset_type)].some(v=>String(v||'').toLowerCase().includes(query)));
+    if ($('status-filter').value) list=list.filter(a=>assetStatus(a)===$('status-filter').value);
+    const sort=$('asset-sort').value;
+    if(sort!=='original') list=[...list].sort((a,b)=>sort==='missing' ? Number(!!a.preview)-Number(!!b.preview) : String(a[sort==='name'?'name':'asset_id']||'').localeCompare(String(b[sort==='name'?'name':'asset_id']||''),'zh-CN'));
+    $('count').textContent = '· ' + list.length + ' / ' + allAssets.length + ' 个资源' + (filter.dir ? ' · '+category(filter.dir) : '') + (archived.size ? ' · 回收站 '+allAssets.filter(a=>archived.has(assetRef(a))).length : '');
+    if (gallery) {
+      $('list').innerHTML = `<tr><td colspan="7" style="padding:0;border:0"><div class="asset-grid">
+        ${list.map(a => {
+          const d = DIR_OF[a.asset_type] || '';
+          const busy = isActiveJob(jobWatch.get(watchKey(d, a.asset_id)));
+          const pv = a.preview ? `<img loading="lazy" alt="模型预览" src="/api/assets/${d}/${a.asset_id}/file/${a.preview}"
+            style="width:100%; aspect-ratio:1; object-fit:contain; border-radius:8px; background:#0b1120">` : '<div class="preview-empty">尚无预览</div>';
+          return `<div tabindex="0" role="link" data-dir="${esc(d)}" data-id="${esc(a.asset_id)}" class="gcard">
+          <input aria-label="选择资产" type="checkbox" class="ck" ${selected.has(assetRef(a))?'checked':''} data-ref="${esc(d)}/${esc(a.asset_id)}" data-ver="${esc(a.version ?? '')}">
+          ${pv}
+
+          <div style="font-size:13px; margin:2px 0">${esc(displayName(a))}</div>
+          <span class="badge">${esc(category(a.asset_type))}</span>${(a.tags||[]).map(tag=>`<span class="badge">${esc(tag)}</span>`).join('')}<button class="sm ghost" data-delete-asset="${esc(d)}/${esc(a.asset_id)}" aria-label="${showTrash?'恢复':'删除'} ${esc(displayName(a))}">${showTrash?'恢复':'删除'}</button>
+          <div class="muted">${esc(assetStatusText(a))} ${a.version ? '· ' + esc(a.version) : ''}${busy ? ' <span class="badge busy">参考图处理中</span>' : ''}</div>
+          ${a.generation?.status==='failed'?`<p class="fail" style="font-size:12px;line-height:1.6;overflow-wrap:anywhere;margin-top:8px">${esc(a.generation.error || '生成失败，点击查看任务记录')}</p>`:''}
+        </div>`;}).join('')}</div></td></tr>`;
+      if (!list.length) $('list').innerHTML='<tr><td colspan="7" style="padding:60px;text-align:center" class="muted">没有匹配资源，请调整搜索条件或点击「重置筛选」。</td></tr>';
+      document.querySelectorAll('.gcard').forEach(c => {
+        c.onclick = e => { if(e.target.type !== 'checkbox') location.hash = `#${c.dataset.dir}/${c.dataset.id}`; };
+        c.onkeydown = e => { if(e.key==='Enter' && e.target===c) c.click(); };
+      });
+      document.querySelectorAll('.ck').forEach(c=>c.onchange=()=>updateBar());
+      updateBar(); return;
+    }
+    $('list').innerHTML = list.map(a => {
+      const d = DIR_OF[a.asset_type] || '';
+      const busy = isActiveJob(jobWatch.get(watchKey(d, a.asset_id)));
+      const pv = a.preview
+        ? `<img src="/api/assets/${d}/${a.asset_id}/file/${a.preview}" loading="lazy"
+            style="width:56px; height:56px; object-fit:contain; border-radius:8px; background:#0b1120">`
+        : '<div class="muted">—</div>';
+      return `<tr style="cursor:pointer" data-dir="${esc(d)}" data-id="${esc(a.asset_id)}">
+        <td><input type="checkbox" class="ck" ${selected.has(assetRef(a))?'checked':''} data-ref="${esc(d)}/${esc(a.asset_id)}" data-ver="${esc(a.version ?? '')}"></td>
+        <td>${pv}</td>
+        <td class="stat">${esc(numberOf(a))}</td><td>${esc(displayName(a))} <button class="sm ghost" data-delete-asset="${esc(d)}/${esc(a.asset_id)}">${showTrash?'恢复':'删除'}</button></td>
+        <td><span class="badge">${esc(category(a.asset_type))}</span></td>
+        <td><span class="badge st">${esc(assetStatusText(a))}</span>${busy ? ' <span class="badge busy">参考图处理中</span>' : ''}</td><td class="muted">${a.version ?? '—'}</td></tr>`;}).join('')
+      || '<tr><td colspan="7" class="muted">没有匹配的资产</td></tr>';
+    document.querySelectorAll('.ck').forEach(c => c.onchange = () => {
+      updateBar();
+      window.__aigccat_selection = [...document.querySelectorAll('.ck:checked')].map(x => {
+        const [dir, id] = x.dataset.ref.split('/');
+        return { dir, id, version: x.dataset.ver };
+      });
+    });
+    $('list').querySelectorAll('tr[data-id]').forEach(tr =>
+      tr.onclick = e => { if (e.target.type !== 'checkbox') location.hash = `#${tr.dataset.dir}/${tr.dataset.id}`; });
+    updateBar();
+  }
+  function updateBar() {
+    const n = [...document.querySelectorAll('.ck:checked')].length;
+    $('batchbar').style.display = n ? 'flex' : 'none';
+    $('selcount').textContent = `已选 ${n}`;
+    const total=document.querySelectorAll('.ck').length;
+    $('ckall').checked = total>0 && n===total;
+    $('ckall').indeterminate = n>0 && n<total;
+  };
+  await renderList();
+  $('list').querySelectorAll('tr[data-id]').forEach(tr =>
+    tr.onclick = e => { if (e.target.type !== 'checkbox') location.hash = `#${tr.dataset.dir}/${tr.dataset.id}`; });
+  document.querySelectorAll('.ck').forEach(c => c.onchange = updateBar);
+  $('ckall').onchange = e => { document.querySelectorAll('.ck').forEach(c => c.checked = e.target.checked); updateBar(); };
+  $('batchgo').onclick = async () => {
+    const assets = [...document.querySelectorAll('.ck:checked')].map(c => c.dataset.ref);
+    const op = $('batchop').value;
+    if (!assets.length) return;
+    if (!confirm(`确认对 ${assets.length} 个资产执行「${$('batchop').selectedOptions[0].textContent}」？生成操作可能消耗额度，发布和回滚会改变资产状态。`)) return;
+    const body = { op, assets };
+    if (op === 'global_style_apply') body.style = (await api('/api/styleprofile')).style_keywords || '';
+    $('batchmsg').textContent = `正在执行${$('batchop').selectedOptions[0].textContent}（${assets.length} 个）…`;
+    try {
+      const d = await api('/api/batch', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+      $('batchmsg').textContent = `已完成：${d.ok}/${d.total} 成功，具体任务信息请在资产详情的后台任务中查看。`;
+      refreshLedger();
+      settingsGuide($('batchmsg'), $('batchmsg').textContent);
+    } catch (e) { $('batchmsg').textContent = '✘ ' + e.message; settingsGuide($('batchmsg'), e.message); }
+  };
+  // ---------- 生成任务关注（只读核对，10 秒一次，离开本页停止） ----------
+  function renderRunBar() {
+    if (!alive() || !$('runbar')) return;
+    const keys = [...jobWatch.keys()];
+    if (!keys.length) { $('runbar').style.display = 'none'; stopLibraryWatch(); return; }
+    $('runbar').style.display = 'block';
+    $('runbar-list').innerHTML = keys.map(key => {
+      const w = jobWatch.get(key);
+      if (!w) return '';
+      const link = `<a class="back" href="#${esc(w.dir || '')}/${esc(w.id)}">${esc(w.id)}</a>`;
+      if (ACTIVE_JOB.includes(String(w.status))) {
+        const prog = w.progress ? ` · 进度 ${esc(String(w.progress.completed_views ?? 0))}/${esc(String(w.progress.total_views ?? 3))}` : '';
+        return `<div class="rw-row"><span class="badge busy">处理中</span>${link}
+          <span>参考图生成中 · <span data-elapsed="${esc(key)}">已等待 ${esc(elapsedText(w.startedAt))}</span>${prog}</span></div>`;
+      }
+      const failed = String(w.status) === 'failed';
+      return `<div class="rw-row"><span class="badge ${failed ? 'pub' : 'st'}">${failed ? '失败' : '已完成'}</span>${link}
+        <span>参考图生成${failed ? '失败' : '已完成'}${failed && w.error ? '：' + esc(w.error) : ''}</span>
+        <button class="sm ghost" data-close="${esc(key)}">知道了</button></div>`;
+    }).join('');
+    $('runbar-list').querySelectorAll('[data-close]').forEach(b =>
+      b.onclick = () => { dropWatch(b.dataset.close); renderRunBar(); });
+  }
+  function tickRunBar() {
+    if (!alive() || !$('runbar')) return;
+    $('runbar').querySelectorAll('[data-elapsed]').forEach(el => {
+      const w = jobWatch.get(el.dataset.elapsed);
+      if (w) el.textContent = '已等待 ' + elapsedText(w.startedAt);
+    });
+  }
+  async function refreshRunBar() {
+    if (!alive()) return;
+    if (!jobWatch.size) { renderRunBar(); return; }
+    let ended = false;
+    for (const [key, w] of [...jobWatch]) {
+      if (!alive()) return;
+      try {
+        const { records } = await loadJobRecords(w.dir, w.id);
+        if (!alive()) return;
+        const ref = latestRefJob(records);
+        if (isActiveJob(ref)) {
+          setWatch(key, { ...w, status: ref.status, jobId: ref.job_id ?? w.jobId,
+            startedAt: jobStartedAt(ref) || w.startedAt, error: '', progress: ref.progress ?? null });
+        } else {
+          if (ACTIVE_JOB.includes(String(w.status))) ended = true;
+          setWatch(key, { ...w, status: ref ? ref.status : 'done', jobId: ref?.job_id ?? w.jobId,
+            startedAt: ref ? (jobStartedAt(ref) || w.startedAt) : w.startedAt,
+            error: ref?.error ?? '', progress: ref?.progress ?? null });
+        }
+      } catch { /* 读取失败：保留上次状态，下一轮继续核对 */ }
+    }
+    if (!alive()) return;
+    renderRunBar();
+    if (ended) {
+      try {
+        allAssets = (await api('/api/assets')).assets || [];
+        if (!alive()) return;
+        tax = await api('/api/taxonomy');
+        if (!alive()) return;
+        fillStatuses($('status-filter').value); drawTypes(); drawSub(); renderList();
+      } catch {}
+    }
+    if (!hasActiveWatch()) stopLibraryWatch();
+  }
+  function startLibraryWatch() {
+    if (libPollTimer || libTickTimer) return;
+    libPollTimer = setInterval(() => { if (alive() && !document.hidden) refreshRunBar().catch(()=>{}); }, 10000);
+    libTickTimer = setInterval(() => { if (alive() && !document.hidden) tickRunBar(); }, 1000);
+  }
+  renderRunBar();
+  if (hasActiveWatch()) startLibraryWatch();
+}
+
+// ---------- Three.js 工具 ----------
+const { viewers, createViewer, disposeViewer, disposeViewers, loadInto, camFor } = viewerTools(modelBounds, fitCamera);
+const VIEW_DIRECTIONS = { front: [0, 0, 1], side: [1, 0, 0], back: [0, 0, -1], '34': [0.7, 0.5, 0.7] };
+function modelBounds(obj) {
+  obj.updateMatrixWorld(true);
+  obj.traverse(mesh => {
+    if (mesh.isSkinnedMesh) {
+      mesh.skeleton?.update();
+      mesh.computeBoundingBox();
+      mesh.computeBoundingSphere();
+    }
+  });
+  const box = new THREE.Box3().setFromObject(obj, true);
+  if (box.isEmpty()) throw new Error('模型没有可取景的几何体');
+  return box;
+}
+function fitCamera(camera, box, direction, controls = null, sharedDistance = 0) {
+  const center = box.getCenter(new THREE.Vector3());
+  const span = Math.max(box.getSize(new THREE.Vector3()).length(), 1e-6);
+  const backward = direction.clone().normalize();
+  const right = new THREE.Vector3().crossVectors(camera.up, backward);
+  if (right.lengthSq() < 1e-10) right.set(1, 0, 0);
+  right.normalize();
+  const up = new THREE.Vector3().crossVectors(backward, right).normalize();
+  const tanV = Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV()) / 2);
+  const tanH = tanV * camera.aspect;
+  const corners = [];
+  let distance = sharedDistance;
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+    const p = new THREE.Vector3(x, y, z).sub(center);
+    const depth = p.dot(backward);
+    corners.push(depth);
+    distance = Math.max(distance, depth + 1.12 * Math.abs(p.dot(right)) / tanH,
+      depth + 1.12 * Math.abs(p.dot(up)) / tanV, depth + span * 0.01);
+  }
+  camera.position.copy(center).addScaledVector(backward, distance);
+  camera.lookAt(center);
+  const depths = corners.map(z => distance - z);
+  camera.near = Math.max(span * 1e-6, Math.min(...depths) * 0.5);
+  camera.far = Math.max(...depths) + span;
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld(true);
+  if (controls) {
+    const autoRotate = controls.autoRotate, damping = controls.enableDamping;
+    controls.autoRotate = false;
+    controls.enableDamping = false;
+    controls.target.copy(center);
+    controls.maxDistance = span * 20;
+    controls.minDistance = span * 0.03;
+    controls.update();
+    controls.autoRotate = autoRotate;
+    controls.enableDamping = damping;
+  }
+  return distance;
+}
+function captureViews(v, presets) {
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  const camera = new THREE.PerspectiveCamera(45, 720 / 900, 0.01, 100);
+  const gridVisible = v.grid.visible;
+  const oldEnvironment = v.scene.environment;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const room = new RoomEnvironment();
+  const environment = pmrem.fromScene(room, 0.04);
+  room.dispose();
+  try {
+    // PMREM 需在截图 renderer 的 WebGL 上下文重新生成。
+    v.scene.environment = environment.texture;
+    renderer.setPixelRatio(1);
+    renderer.setSize(720, 900, false);
+    renderer.outputColorSpace = v.renderer.outputColorSpace;
+    renderer.toneMapping = v.renderer.toneMapping;
+    renderer.toneMappingExposure = v.renderer.toneMappingExposure;
+    const box = modelBounds(v.obj);
+    const directions = presets.map(p => {
+      const direction = new THREE.Vector3(...VIEW_DIRECTIONS[p]);
+      if (v.planFrontNegativeZ) direction.applyAxisAngle(new THREE.Vector3(0,1,0), Math.PI);
+      return direction;
+    });
+    // 所有视角采用同一距离和视场角，统一尺度并容纳最宽的视角。
+    const distance = Math.max(...directions.map(direction => fitCamera(camera, box, direction)));
+    v.grid.visible = false;
+    // 同步完成截图后恢复场景；不等待动画帧，不触碰交互相机或控制器。
+    return presets.map((preset, i) => {
+      fitCamera(camera, box, directions[i], null, distance);
+      renderer.render(v.scene, camera);
+      return { preset, data_b64: renderer.domElement.toDataURL('image/png').split(',')[1] };
+    });
+  } finally {
+    v.grid.visible = gridVisible;
+    v.scene.environment = oldEnvironment;
+    environment.dispose();
+    pmrem.dispose();
+    renderer.dispose();
+    renderer.forceContextLoss();
+  }
+}
+
+// ---------- 路由 ----------
+async function pageImages() {
+  disposeViewers();
+  const epoch = detailEpoch;
+  app.innerHTML = '<section class="workspace-head"><h2>图片资源</h2><a href="/#new=1&tool=image">创作图片</a></section><div class="ops"><a href="/library.html">模型资产</a><input id="media-search" type="search" aria-label="搜索图片资源" placeholder="搜索所属资产"><span>每个资产仅展示一组四视图 · 下载原图</span></div><div id="media-list" class="media-grid">加载图片资源…</div>';
+  const [media, assets, state] = await Promise.all([api('/api/media/images'),api('/api/assets'),api('/api/workbench/state')]);
+  if (epoch !== detailEpoch) return;
+  const names = new Map(assets.assets.map(a => [DIR_OF[a.asset_type]+'/'+a.asset_id,a.name]));
+  const grouped=new Map();
+  for(const item of media.images){if((state.archived||[]).includes(item.asset)||!names.has(item.asset))continue;if(!grouped.has(item.asset))grouped.set(item.asset,[]);grouped.get(item.asset).push(item);}
+  const visible=[...grouped.values()].flatMap(assetImages);
+  const render = () => {
+    const query = $('media-search').value.trim().toLowerCase();
+    $('media-list').innerHTML = visible.filter(i => !query || (names.get(i.asset)||i.asset).toLowerCase().includes(query)).map(i => {
+      const url = '/api/assets/'+i.asset+'/file/'+i.path;
+      const href = '/#'+new URLSearchParams({asset:i.asset,tool:'image'});
+      return `<figure><a href="${esc(href)}"><img loading="lazy" src="${esc(url)}" alt="${esc(names.get(i.asset)||i.asset)}"></a><figcaption><strong>${esc(names.get(i.asset)||i.asset)}</strong><span>${({front:'正面',back:'背面',side:'左侧',right:'右侧'})[imageView(i)]||'图片'}</span><a href="${esc(url)}" download title="下载图片">下载</a></figcaption></figure>`;
+    }).join('') || '<p>暂无匹配图片</p>';
+  };
+  $('media-search').oninput = render; render();
+}
+
+async function route() {
+  ++detailEpoch; detailCleanup(); detailCleanup=()=>{};
+  refreshLedger();
+  const h = location.hash.slice(1);
+  const m = h.match(/^([a-z]+)\/(.+)$/);
+  try {
+    if (h === 'canvas') {
+      disposeViewers();
+      await mountCanvas({ host: app, api, DIR_OF, THREE, GLTFLoader, OrbitControls, RoomEnvironment, modelBounds, fitCamera });
+    } else if (h === 'images') await pageImages();
+    else if (m && Object.values(DIR_OF).includes(m[1])) location.replace('/#' + new URLSearchParams({asset:m[1]+'/'+m[2],tool:'model'}));
+    else { disposeViewers(); await pageLibrary(); }
+  } catch (e) {
+    const error = document.createElement('div'); error.className = 'card fail';
+    error.textContent = '加载失败：' + e.message; settingsGuide(error, e.message);
+    app.replaceChildren(error);
+  }
+}
+addEventListener('hashchange', route);
+route();
+</script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+# 密钥
+.env
+
+# 跨 AI 的内部交接日志（含开发过程与会话记录，不随源码发布）
+.ai/
+
+# 内部开发记录（不随源码发布）
+# 这些文件是本地工作文档：决策过程、逐次变更日志、验收记录、基础设施细节。
+# 从公开分支移除时用 `git rm --cached`，文件本身保留在工作区。
+.workbuddy/
+.cursorrules
+AGENTS.md
+CLAUDE.md
+PROGRESS.md
+docs/WORKBENCH.md
+docs/PROJECT-MAP.md
+docs/AI-HANDOFF.md
+docs/ACCOUNTS.md
+docs/PUBLIC-SSH-TUNNEL.md
+docs/STUDIO-AUTOMATION.md
+docs/DCC-BRIDGE.md
+docs/OPENCODE-RIG-AGENT.md
+docs/REQUEST-AUDIT-*.md
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Rust
+web/target/
+**/*.rs.bk
+
+# 系统
+.DS_Store
+
+# 编辑器
+.idea/
+.vscode/
+
+# 本地数据（docker volumes 之外的临时产物）
+tmp/
+*.log
+
+# Local Node dependencies
+node_modules/
+
+# DCC demo editor caches
+outputs/dcc-bridge/**/.godot/
+outputs/dcc-bridge/**/Library/
+outputs/dcc-bridge/**/Temp/
+outputs/dcc-bridge/**/Logs/
+outputs/dcc-bridge/**/UserSettings/
+
+# Studio temporary signed result links
+outputs/fullflow-30/**/*.private.json
+
+outputs/fullflow-30/**/*.private.json.tmp
+outputs/highquality-10/**/*.private.json
+outputs/highquality-10/**/*.private.json.tmp
+
+# OpenCode private sessions, input copies and generated scripts
+outputs/opencode-tasks/
+
+outputs/opencode-tasks
+
+# 本地批次产物（体积大、可复现，不入库）
+# 需要随源码发布的示例模型请用 `git add -f` 单独加入
+outputs/local-rig/
+outputs/test-models-100/
+outputs/studio-flow/
+outputs/pixel-pipeline/
+outputs/dcc-bridge/
+outputs/fullflow-30/
+outputs/highquality-10/
+outputs/docker-sandbox/
+
+# 示例模型：只发布精选的那一批，其余一律不入库
+# （精选的用 `git add -f` 单独加入）
+outputs/**/*.glb
+outputs/*.glb
+md/*.glb
+
+# 本地三路对比产物（含提示词与 Blender 工程文件）
+outputs/schoolgirl-comparison/
+
+# outputs 根目录下的检查报告与统计产物（本地验收用，不入库）
+outputs/*.json
+outputs/*.txt
+outputs/*.blend
+outputs/*.stats.json
+
+# 验收截图与过程图片（不入库）
+outputs/**/*.png
+outputs/**/*.jpg
+outputs/**/*.jpeg
+outputs/**/*.webp
+outputs/**/*.gif
+outputs/**/*.bmp

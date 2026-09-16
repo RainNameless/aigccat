@@ -1,0 +1,1018 @@
+{
+  "source": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/",
+  "catalog_source": "tripo-cli 0.4.0 skill/commands/process.md rig v1.0 biped list",
+  "retrieved": "2026-09-14",
+  "note": "Public preview media, not skeletal animation data. Redistribution license not verified.",
+  "items": [
+    {
+      "id": "idle",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/idle.avif",
+      "path": "/motion-previews/tripo/biped/idle.avif",
+      "bytes": 44454,
+      "sha256": "ca130e513a932880a8cb925963c4d38d9171b612f047bfb5039cd761e9d6ab0a",
+      "animated": true,
+      "name": "待机"
+    },
+    {
+      "id": "walk",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/walk.avif",
+      "path": "/motion-previews/tripo/biped/walk.avif",
+      "bytes": 24989,
+      "sha256": "f62b8a0bb0eb2bb91dbee79f439f58ed34d579062def8666865e58c204febf59",
+      "animated": true,
+      "name": "行走"
+    },
+    {
+      "id": "run",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/run.avif",
+      "path": "/motion-previews/tripo/biped/run.avif",
+      "bytes": 19017,
+      "sha256": "328ff6b5b15f7587c240bfa5c5de2412b640d3e9ef88452656ed8798174162d8",
+      "animated": true,
+      "name": "跑步"
+    },
+    {
+      "id": "run_upstairs",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/run_upstairs.avif",
+      "path": "/motion-previews/tripo/biped/run_upstairs.avif",
+      "bytes": 10283,
+      "sha256": "5e23af693876fcd077cf2038fcb08eb97f271f54f6d2d67cb5e002150df3a30b",
+      "animated": true,
+      "name": "跑上楼梯"
+    },
+    {
+      "id": "turn",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/turn.avif",
+      "path": "/motion-previews/tripo/biped/turn.avif",
+      "bytes": 34389,
+      "sha256": "9e38edc0b5844478737c07d39e49dcd00a2cb7fb246c6074fd7463859a9aba72",
+      "animated": true,
+      "name": "转身"
+    },
+    {
+      "id": "jump",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/jump.avif",
+      "path": "/motion-previews/tripo/biped/jump.avif",
+      "bytes": 25376,
+      "sha256": "c4826f43390e9dcf3d965bb9b17eded6a4dd556ccee0ce7eb1237b112a92c65b",
+      "animated": true,
+      "name": "跳跃"
+    },
+    {
+      "id": "jump_down",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/jump_down.avif",
+      "path": "/motion-previews/tripo/biped/jump_down.avif",
+      "bytes": 56397,
+      "sha256": "45f310b9c5eced80eb9acf7751295f546f241998803e52ae95d0b077135a3d06",
+      "animated": true,
+      "name": "跳下"
+    },
+    {
+      "id": "jump_rope_01",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/jump_rope_01.avif",
+      "path": "/motion-previews/tripo/biped/jump_rope_01.avif",
+      "bytes": 87957,
+      "sha256": "26740f7716c12e936705e3036c579a25e30bca2a066d67c4b4994b9622b3f873",
+      "animated": true,
+      "name": "跳绳 1"
+    },
+    {
+      "id": "jump_rope_02",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/jump_rope_02.avif",
+      "path": "/motion-previews/tripo/biped/jump_rope_02.avif",
+      "bytes": 51716,
+      "sha256": "1df3915ffb7d36ee4ffdf9a34ad1af7279fae68ddec87aee35515f6f4b3de43c",
+      "animated": true,
+      "name": "跳绳 2"
+    },
+    {
+      "id": "fall",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/fall.avif",
+      "path": "/motion-previews/tripo/biped/fall.avif",
+      "bytes": 35497,
+      "sha256": "f76e76e5412d7c3591d94e640d5a2f2452d5ad0d7aa15617e1c99a18f5ee81ab",
+      "animated": true,
+      "name": "跌倒"
+    },
+    {
+      "id": "climb",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/climb.avif",
+      "path": "/motion-previews/tripo/biped/climb.avif",
+      "bytes": 48546,
+      "sha256": "e3cc75f60c70094bc0de895cb1de546d5a456cb4f216784c1227b0e7fa35a350",
+      "animated": true,
+      "name": "攀爬"
+    },
+    {
+      "id": "dive",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/dive.avif",
+      "path": "/motion-previews/tripo/biped/dive.avif",
+      "bytes": 34725,
+      "sha256": "0c53691d117cf101959e9aa6dcc4b32bbb033bf6a0ccbd2f9e206169fced098e",
+      "animated": true,
+      "name": "跳水"
+    },
+    {
+      "id": "swim",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/swim.avif",
+      "path": "/motion-previews/tripo/biped/swim.avif",
+      "bytes": 68936,
+      "sha256": "a9399b5f2a25ac151a57f1b8eeb838fa34d0824fa3dc17a3626dea603802a40a",
+      "animated": true,
+      "name": "游泳"
+    },
+    {
+      "id": "surf",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/surf.avif",
+      "path": "/motion-previews/tripo/biped/surf.avif",
+      "bytes": 17806,
+      "sha256": "8abd0daf4603550538e1b19930d8ee15b19379770a89e8cb9ffaa013e004486a",
+      "animated": true,
+      "name": "冲浪"
+    },
+    {
+      "id": "flip",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/flip.avif",
+      "path": "/motion-previews/tripo/biped/flip.avif",
+      "bytes": 59215,
+      "sha256": "f816e064ad8012ca18d3353d64ed765ace0408951489115964602aa17d626237",
+      "animated": true,
+      "name": "翻转"
+    },
+    {
+      "id": "sit",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/sit.avif",
+      "path": "/motion-previews/tripo/biped/sit.avif",
+      "bytes": 22563,
+      "sha256": "a6b4584bbc9d9e8dcbac3d09ec65aec34a9891e210d163e55659f4b886c0f7ee",
+      "animated": true,
+      "name": "坐下"
+    },
+    {
+      "id": "standing_relax",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/standing_relax.avif",
+      "path": "/motion-previews/tripo/biped/standing_relax.avif",
+      "bytes": 44112,
+      "sha256": "38d4b86f10a29a480ea728f28100dd151e89c7161156400fc23baa1e0fac2725",
+      "animated": true,
+      "name": "放松站立"
+    },
+    {
+      "id": "look_around",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/look_around.avif",
+      "path": "/motion-previews/tripo/biped/look_around.avif",
+      "bytes": 79610,
+      "sha256": "5a0d90884e6a7cbab54258b4599c3ef52c6443e85e12d9d8ef2c87f50bf42d9e",
+      "animated": true,
+      "name": "四处张望"
+    },
+    {
+      "id": "wait",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/wait.avif",
+      "path": "/motion-previews/tripo/biped/wait.avif",
+      "bytes": 12023,
+      "sha256": "d414fba74b9bf390d994eb1c268214707a9edd21fcffbaedf4855c31b0aaa82c",
+      "animated": true,
+      "name": "等待"
+    },
+    {
+      "id": "swagger",
+      "category": "basic",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/swagger.avif",
+      "path": "/motion-previews/tripo/biped/swagger.avif",
+      "bytes": 41766,
+      "sha256": "f8739a16d2ae28e80f80f02c26b810e7526786f20809884f9d7edab15a2edc2d",
+      "animated": true,
+      "name": "大摇大摆"
+    },
+    {
+      "id": "dance_01",
+      "category": "dance",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/dance_01.avif",
+      "path": "/motion-previews/tripo/biped/dance_01.avif",
+      "bytes": 239710,
+      "sha256": "52f20aa24fe8995c4334a212e3f8402fa164ff9f8104ca711954a6c3e12184d3",
+      "animated": true,
+      "name": "舞蹈 1"
+    },
+    {
+      "id": "dance_02",
+      "category": "dance",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/dance_02.avif",
+      "path": "/motion-previews/tripo/biped/dance_02.avif",
+      "bytes": 165147,
+      "sha256": "a1782113fe1c70cbdd5ce48541a997c7e8b0f2ebba89ef843b31000bcad5c91c",
+      "animated": true,
+      "name": "舞蹈 2"
+    },
+    {
+      "id": "dance_03",
+      "category": "dance",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/dance_03.avif",
+      "path": "/motion-previews/tripo/biped/dance_03.avif",
+      "bytes": 164758,
+      "sha256": "a59016673a4022a3e8a3ea66dc83a04c005bd6583419dde094122cd4810246b3",
+      "animated": true,
+      "name": "舞蹈 3"
+    },
+    {
+      "id": "dance_04",
+      "category": "dance",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/dance_04.avif",
+      "path": "/motion-previews/tripo/biped/dance_04.avif",
+      "bytes": 137239,
+      "sha256": "bd525081851ad1794fd50793780a1b6a30e3564c88889632d8487e06fd23c600",
+      "animated": true,
+      "name": "舞蹈 4"
+    },
+    {
+      "id": "dance_05",
+      "category": "dance",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/dance_05.avif",
+      "path": "/motion-previews/tripo/biped/dance_05.avif",
+      "bytes": 35188,
+      "sha256": "7cbff31ea595b97fbbd4f8842bdd297b0ad7a5608847c45fa78f5379824b546a",
+      "animated": true,
+      "name": "舞蹈 5"
+    },
+    {
+      "id": "dance_06",
+      "category": "dance",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/dance_06.avif",
+      "path": "/motion-previews/tripo/biped/dance_06.avif",
+      "bytes": 84091,
+      "sha256": "94d8f6d911daacab00db4472d4ea3989888ea86246124c3645293b39d47f4e7f",
+      "animated": true,
+      "name": "舞蹈 6"
+    },
+    {
+      "id": "freaky",
+      "category": "dance",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/freaky.avif",
+      "path": "/motion-previews/tripo/biped/freaky.avif",
+      "bytes": 11232,
+      "sha256": "04deb0dee802a51b8019747343444cb6a095df5b30af52ca3796dca7f913d56a",
+      "animated": true,
+      "name": "搞怪舞"
+    },
+    {
+      "id": "sing_01",
+      "category": "performance",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/sing_01.avif",
+      "path": "/motion-previews/tripo/biped/sing_01.avif",
+      "bytes": 139407,
+      "sha256": "488c394664208502b2eb9cf1b85c762b05d31d6a676f91d3ffe98b7fc2ca0eca",
+      "animated": true,
+      "name": "唱歌 1"
+    },
+    {
+      "id": "sing_02",
+      "category": "performance",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/sing_02.avif",
+      "path": "/motion-previews/tripo/biped/sing_02.avif",
+      "bytes": 146829,
+      "sha256": "ae0edb71d6575807870ae077b0e5ff7aaea4e954b6e506ea6401314da8ec0311",
+      "animated": true,
+      "name": "唱歌 2"
+    },
+    {
+      "id": "sing_03",
+      "category": "performance",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/sing_03.avif",
+      "path": "/motion-previews/tripo/biped/sing_03.avif",
+      "bytes": 131601,
+      "sha256": "34d0f87dd1cbee7ed286d61102c90d70ef856135f97fb7c062bc65077a5444c7",
+      "animated": true,
+      "name": "唱歌 3"
+    },
+    {
+      "id": "sing_04",
+      "category": "performance",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/sing_04.avif",
+      "path": "/motion-previews/tripo/biped/sing_04.avif",
+      "bytes": 122861,
+      "sha256": "ac0f0fb98a15fb5da0376d378d6c66469ef39151aa0d689bcd088aeaf18d0029",
+      "animated": true,
+      "name": "唱歌 4"
+    },
+    {
+      "id": "cheer",
+      "category": "performance",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/cheer.avif",
+      "path": "/motion-previews/tripo/biped/cheer.avif",
+      "bytes": 93078,
+      "sha256": "47a5fbbf09fd3fab84948176a82f9e525cf55de6aa60fb676efd32132ae0c34e",
+      "animated": true,
+      "name": "欢呼"
+    },
+    {
+      "id": "clap",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/clap.avif",
+      "path": "/motion-previews/tripo/biped/clap.avif",
+      "bytes": 58462,
+      "sha256": "1b8c7d42f9b3e1f619003cd8381ece6cfcbdac31c2ee38b18564a8376f01c807",
+      "animated": true,
+      "name": "鼓掌"
+    },
+    {
+      "id": "bow",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/bow.avif",
+      "path": "/motion-previews/tripo/biped/bow.avif",
+      "bytes": 28762,
+      "sha256": "01643749a6e402d997b0d3cb372b1b8a10de350f174eb94728ee0b99182f3a85",
+      "animated": true,
+      "name": "鞠躬"
+    },
+    {
+      "id": "greet_01",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/greet_01.avif",
+      "path": "/motion-previews/tripo/biped/greet_01.avif",
+      "bytes": 38351,
+      "sha256": "0c697e21601b5e925139dd3278bec191d5dbbb9f7247a257cc1dafcff386f750",
+      "animated": true,
+      "name": "问候 1"
+    },
+    {
+      "id": "greet_02",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/greet_02.avif",
+      "path": "/motion-previews/tripo/biped/greet_02.avif",
+      "bytes": 36256,
+      "sha256": "f657f268ab0c62c45e21fcb15a3c451e51f8a3bf4003afc860ac7840537b4f5d",
+      "animated": true,
+      "name": "问候 2"
+    },
+    {
+      "id": "greet_03",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/greet_03.avif",
+      "path": "/motion-previews/tripo/biped/greet_03.avif",
+      "bytes": 72880,
+      "sha256": "66651271965e3db40096b2a964110dbd9c74d14234a27c12621f8afe89bc0eaf",
+      "animated": true,
+      "name": "问候 3"
+    },
+    {
+      "id": "greet_04",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/greet_04.avif",
+      "path": "/motion-previews/tripo/biped/greet_04.avif",
+      "bytes": 29004,
+      "sha256": "f22d409851aaf6500d045f18c70db49a8afcf8c1776c7b19a3326b0e28a89e21",
+      "animated": true,
+      "name": "问候 4"
+    },
+    {
+      "id": "wave_goodbye_01",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/wave_goodbye_01.avif",
+      "path": "/motion-previews/tripo/biped/wave_goodbye_01.avif",
+      "bytes": 22009,
+      "sha256": "0f3b7031283b061a183b59334a2ec1167ac1715f25a0cdba6cdf0091f941dae4",
+      "animated": true,
+      "name": "挥手告别 1"
+    },
+    {
+      "id": "wave_goodbye_02",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/wave_goodbye_02.avif",
+      "path": "/motion-previews/tripo/biped/wave_goodbye_02.avif",
+      "bytes": 48034,
+      "sha256": "8d658674aad870824f2e288433c6cc40615a7ebc50e5da740d610d20af3dd446",
+      "animated": true,
+      "name": "挥手告别 2"
+    },
+    {
+      "id": "agree",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/agree.avif",
+      "path": "/motion-previews/tripo/biped/agree.avif",
+      "bytes": 21821,
+      "sha256": "0489fb82d3d9a3dccda1bbf78b10307ca54a7c5e2288a54daa34525741326cea",
+      "animated": true,
+      "name": "同意"
+    },
+    {
+      "id": "heart_pose",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/heart_pose.avif",
+      "path": "/motion-previews/tripo/biped/heart_pose.avif",
+      "bytes": 40306,
+      "sha256": "7f55059909024c2f455d5f744cb8a5a8d63f168249acd91c15a9aebe35409a27",
+      "animated": true,
+      "name": "比心"
+    },
+    {
+      "id": "hug",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/hug.avif",
+      "path": "/motion-previews/tripo/biped/hug.avif",
+      "bytes": 44730,
+      "sha256": "ddd00f67728b2959aadab4679b25b210a7e0689cf392f617791000c2fec2fc04",
+      "animated": true,
+      "name": "拥抱"
+    },
+    {
+      "id": "fold_arms",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/fold_arms.avif",
+      "path": "/motion-previews/tripo/biped/fold_arms.avif",
+      "bytes": 43999,
+      "sha256": "ba862983e0fd9de84cc78913d08cc9e3b11a8fb9af3ac96d82ee6dfc3aa0ff00",
+      "animated": true,
+      "name": "抱臂"
+    },
+    {
+      "id": "laugh_01",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/laugh_01.avif",
+      "path": "/motion-previews/tripo/biped/laugh_01.avif",
+      "bytes": 49238,
+      "sha256": "5c80f079c7fe744cc120a85906cc03bf32e8df4e852d2c613563e107dd97a606",
+      "animated": true,
+      "name": "大笑 1"
+    },
+    {
+      "id": "laugh_02",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/laugh_02.avif",
+      "path": "/motion-previews/tripo/biped/laugh_02.avif",
+      "bytes": 51179,
+      "sha256": "b1c936b4b9c0b9b9424e2b52fb4eba230bed1851b88eb8abd933438463b10799",
+      "animated": true,
+      "name": "大笑 2"
+    },
+    {
+      "id": "cry",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/cry.avif",
+      "path": "/motion-previews/tripo/biped/cry.avif",
+      "bytes": 59064,
+      "sha256": "772d65a9b7e1ba09154ecd8ef2a78a99201210dc31f75c6d2fad0e4286f53b53",
+      "animated": true,
+      "name": "哭泣"
+    },
+    {
+      "id": "sob",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/sob.avif",
+      "path": "/motion-previews/tripo/biped/sob.avif",
+      "bytes": 29226,
+      "sha256": "09a80791febb07f6918d78bb40f4034a49e3b8e71b2e414ebc505c2d046dd107",
+      "animated": true,
+      "name": "抽泣"
+    },
+    {
+      "id": "afraid",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/afraid.avif",
+      "path": "/motion-previews/tripo/biped/afraid.avif",
+      "bytes": 17846,
+      "sha256": "22b2169b20ad32b490bbe630ad1b1fe99334acaec89ae376ecfd4b1686e0d502",
+      "animated": true,
+      "name": "害怕"
+    },
+    {
+      "id": "frightened",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/frightened.avif",
+      "path": "/motion-previews/tripo/biped/frightened.avif",
+      "bytes": 40491,
+      "sha256": "8f2d2a012fefdf5f0e13403014219bba02bc259cb091113e5717e1b15f61bd5c",
+      "animated": true,
+      "name": "受惊"
+    },
+    {
+      "id": "scared_01",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/scared_01.avif",
+      "path": "/motion-previews/tripo/biped/scared_01.avif",
+      "bytes": 22303,
+      "sha256": "53d613031277fc7be7a914ae6fe72c7158e584ba7497e97c0923ba15102ecc4d",
+      "animated": true,
+      "name": "惊恐 1"
+    },
+    {
+      "id": "scared_02",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/scared_02.avif",
+      "path": "/motion-previews/tripo/biped/scared_02.avif",
+      "bytes": 20453,
+      "sha256": "482aa67755f74d4fe37a7cad985eef83369c694d58b4a54ae17ad3ec929fde27",
+      "animated": true,
+      "name": "惊恐 2"
+    },
+    {
+      "id": "angry_01",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/angry_01.avif",
+      "path": "/motion-previews/tripo/biped/angry_01.avif",
+      "bytes": 40582,
+      "sha256": "c29efc9d4eac3211ec8d098c8ba6adc183a8adb2ecbaa263b21874e569fda6b7",
+      "animated": true,
+      "name": "生气 1"
+    },
+    {
+      "id": "angry_02",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/angry_02.avif",
+      "path": "/motion-previews/tripo/biped/angry_02.avif",
+      "bytes": 26293,
+      "sha256": "fdbcdb47b5419cd0b40bc364f68d5d65a0c374b86f8eb00a8e1412d876aa343e",
+      "animated": true,
+      "name": "生气 2"
+    },
+    {
+      "id": "angry_03",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/angry_03.avif",
+      "path": "/motion-previews/tripo/biped/angry_03.avif",
+      "bytes": 31036,
+      "sha256": "528bd2289e1971b734936035788494818a42b7ae3b5db5adaf626da3064fd669",
+      "animated": true,
+      "name": "生气 3"
+    },
+    {
+      "id": "depressed",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/depressed.avif",
+      "path": "/motion-previews/tripo/biped/depressed.avif",
+      "bytes": 51164,
+      "sha256": "1c7d635d9371aa3ac66bdb05ac51ea0dc216e85a859f33d6219e169917ee5f97",
+      "animated": true,
+      "name": "沮丧"
+    },
+    {
+      "id": "frustrated_01",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/frustrated_01.avif",
+      "path": "/motion-previews/tripo/biped/frustrated_01.avif",
+      "bytes": 32688,
+      "sha256": "ffb3708a0a90b0ab32fa71056eb70444a1893deb1163b49e906daec972c701cc",
+      "animated": true,
+      "name": "懊恼 1"
+    },
+    {
+      "id": "frustrated_02",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/frustrated_02.avif",
+      "path": "/motion-previews/tripo/biped/frustrated_02.avif",
+      "bytes": 58855,
+      "sha256": "ccc11d44a5b093ae432d3db0d34716729d062677f4dadf44a83622146d132722",
+      "animated": true,
+      "name": "懊恼 2"
+    },
+    {
+      "id": "complain_01",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/complain_01.avif",
+      "path": "/motion-previews/tripo/biped/complain_01.avif",
+      "bytes": 56907,
+      "sha256": "10db9a67982f8ffa6747f00c8ebba0fa6c393697e3b311e461b66b1853046a5f",
+      "animated": true,
+      "name": "抱怨 1"
+    },
+    {
+      "id": "complain_02",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/complain_02.avif",
+      "path": "/motion-previews/tripo/biped/complain_02.avif",
+      "bytes": 82671,
+      "sha256": "710a90d28e0390ae08547bc19b8ea1cad6a973189e69248e7100f5f830f33700",
+      "animated": true,
+      "name": "抱怨 2"
+    },
+    {
+      "id": "victory_celebration",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/victory_celebration.avif",
+      "path": "/motion-previews/tripo/biped/victory_celebration.avif",
+      "bytes": 45802,
+      "sha256": "3730ff6f9c75b45b427d361f9d904810ec5106cb520d789f4aff8d35c516c81b",
+      "animated": true,
+      "name": "胜利庆祝"
+    },
+    {
+      "id": "defeat_02",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/defeat_02.avif",
+      "path": "/motion-previews/tripo/biped/defeat_02.avif",
+      "bytes": 29171,
+      "sha256": "4a8352a96bb1bf8b23ab54118ccf77cf5fc1884ef4613b8251c1ddfb9894f5b6",
+      "animated": true,
+      "name": "失败 2"
+    },
+    {
+      "id": "defeat_03",
+      "category": "emotion",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/defeat_03.avif",
+      "path": "/motion-previews/tripo/biped/defeat_03.avif",
+      "bytes": 60053,
+      "sha256": "4330ea018c7192fa71810f5beda3e3136c2c81cfaca9984550a9350a3a22d444",
+      "animated": true,
+      "name": "失败 3"
+    },
+    {
+      "id": "scratch",
+      "category": "daily",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/scratch.avif",
+      "path": "/motion-previews/tripo/biped/scratch.avif",
+      "bytes": 107994,
+      "sha256": "7d72b1e655ff1e567ae13a452e2daa4b62984dd8fe2e9e49b668e7f61c8cc766",
+      "animated": true,
+      "name": "挠痒"
+    },
+    {
+      "id": "make_a_call_01",
+      "category": "daily",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/make_a_call_01.avif",
+      "path": "/motion-previews/tripo/biped/make_a_call_01.avif",
+      "bytes": 36917,
+      "sha256": "4da8a657bd7dd8ab14b5b9604d6f4c70bb45601bb5574ca87c33be9a7a9fcb2b",
+      "animated": true,
+      "name": "打电话 1"
+    },
+    {
+      "id": "make_a_call_02",
+      "category": "daily",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/make_a_call_02.avif",
+      "path": "/motion-previews/tripo/biped/make_a_call_02.avif",
+      "bytes": 124010,
+      "sha256": "7d71af3b0e8eff87add832987fb7fc2dfcf1d42a5a59d37fc47c0462225e0ad9",
+      "animated": true,
+      "name": "打电话 2"
+    },
+    {
+      "id": "play_mobile_game",
+      "category": "daily",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/play_mobile_game.avif",
+      "path": "/motion-previews/tripo/biped/play_mobile_game.avif",
+      "bytes": 69355,
+      "sha256": "3f47854320be811a33a17c1fa3c64f48017e33222c1e23e04af837d1e448a9b0",
+      "animated": true,
+      "name": "玩手机"
+    },
+    {
+      "id": "play_video_game",
+      "category": "daily",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/play_video_game.avif",
+      "path": "/motion-previews/tripo/biped/play_video_game.avif",
+      "bytes": 66427,
+      "sha256": "08fe621955b76dcd14ba36d1d9ce30e9555ec131f067478e36094972f393f5fe",
+      "animated": true,
+      "name": "玩游戏"
+    },
+    {
+      "id": "dig",
+      "category": "daily",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/dig.avif",
+      "path": "/motion-previews/tripo/biped/dig.avif",
+      "bytes": 79846,
+      "sha256": "4663187b7d9744cfe3e98e6f1f03c7cc286fa1b95c6761315e6dbd5d795a1fdb",
+      "animated": true,
+      "name": "挖掘"
+    },
+    {
+      "id": "chop",
+      "category": "daily",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/chop.avif",
+      "path": "/motion-previews/tripo/biped/chop.avif",
+      "bytes": 43536,
+      "sha256": "baa5fc00484d7c01d335987af2072dd2118ccb78b4025cf1dbc26f508691479d",
+      "animated": true,
+      "name": "砍伐"
+    },
+    {
+      "id": "shovel",
+      "category": "daily",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/shovel.avif",
+      "path": "/motion-previews/tripo/biped/shovel.avif",
+      "bytes": 153475,
+      "sha256": "3fb7fbbc79fa8dc680e09a94318e92f7c86cc496c7b4b2d2df2081dedc06a6ea",
+      "animated": true,
+      "name": "铲土"
+    },
+    {
+      "id": "lift_heavy",
+      "category": "daily",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/lift_heavy.avif",
+      "path": "/motion-previews/tripo/biped/lift_heavy.avif",
+      "bytes": 118715,
+      "sha256": "d159e2d452624c10d3d3638f404894e4325214f9daab7af81670e7446a3e3c2a",
+      "animated": true,
+      "name": "搬重物"
+    },
+    {
+      "id": "warm_up",
+      "category": "sports",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/warm_up.avif",
+      "path": "/motion-previews/tripo/biped/warm_up.avif",
+      "bytes": 118434,
+      "sha256": "33ea69d74f8dcac6a88135ca4667d127beee1fc474bc97815ea361dc214c2828",
+      "animated": true,
+      "name": "热身"
+    },
+    {
+      "id": "press-up",
+      "category": "sports",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/press-up.avif",
+      "path": "/motion-previews/tripo/biped/press-up.avif",
+      "bytes": 21255,
+      "sha256": "e16ca947d539ef9da4112049c94fef94de896b6327d6fbecc33a8bed546bcf5e",
+      "animated": true,
+      "name": "俯卧撑"
+    },
+    {
+      "id": "cross_body_crunch",
+      "category": "sports",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/cross_body_crunch.avif",
+      "path": "/motion-previews/tripo/biped/cross_body_crunch.avif",
+      "bytes": 14159,
+      "sha256": "abec00f60d69c7e27d53c0ca4388e30eb1f57cd1ff4f9328b267bf311de0bbe4",
+      "animated": true,
+      "name": "交叉卷腹"
+    },
+    {
+      "id": "basketball_shot",
+      "category": "sports",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/basketball_shot.avif",
+      "path": "/motion-previews/tripo/biped/basketball_shot.avif",
+      "bytes": 60968,
+      "sha256": "3fdec8b6d70551ed9114a9397148c15ba55c3315bec38da7f5e4c5921e88bd31",
+      "animated": true,
+      "name": "篮球投篮"
+    },
+    {
+      "id": "crossover_dribble",
+      "category": "sports",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/crossover_dribble.avif",
+      "path": "/motion-previews/tripo/biped/crossover_dribble.avif",
+      "bytes": 123445,
+      "sha256": "8635436f9f361f1c69e0075e15d15abf0e9c10cee223a9d2123e917ff39acf1f",
+      "animated": true,
+      "name": "变向运球"
+    },
+    {
+      "id": "dribble",
+      "category": "sports",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/dribble.avif",
+      "path": "/motion-previews/tripo/biped/dribble.avif",
+      "bytes": 128736,
+      "sha256": "0dba9c771a4e9337d68258e8b2787cf85ded7236a9480752caf5a3006d295992",
+      "animated": true,
+      "name": "运球"
+    },
+    {
+      "id": "pitch_baseball",
+      "category": "sports",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/pitch_baseball.avif",
+      "path": "/motion-previews/tripo/biped/pitch_baseball.avif",
+      "bytes": 28216,
+      "sha256": "bf76a07fc1bc2dae3ab562c2ef23debbd92e1394a58e56eb2621126e53ede89d",
+      "animated": true,
+      "name": "棒球投球"
+    },
+    {
+      "id": "golf",
+      "category": "sports",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/golf.avif",
+      "path": "/motion-previews/tripo/biped/golf.avif",
+      "bytes": 92992,
+      "sha256": "9d2b921e69fd48818d3f740be4f8d64b56ccbe4e467387debb2a506b641f6ff0",
+      "animated": true,
+      "name": "高尔夫"
+    },
+    {
+      "id": "volleyball",
+      "category": "sports",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/volleyball.avif",
+      "path": "/motion-previews/tripo/biped/volleyball.avif",
+      "bytes": 65339,
+      "sha256": "1ecc199098765640b5fb822cdbd9fe65b652f451ac3106be10d5a1ec43f374d8",
+      "animated": true,
+      "name": "排球"
+    },
+    {
+      "id": "football_catch",
+      "category": "sports",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/football_catch.avif",
+      "path": "/motion-previews/tripo/biped/football_catch.avif",
+      "bytes": 27703,
+      "sha256": "0e842a2785a3aff77e5b0a9efe21ed7bdbdd7c214abbc713619c97765b7699e5",
+      "animated": true,
+      "name": "接球"
+    },
+    {
+      "id": "football_save",
+      "category": "sports",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/football_save.avif",
+      "path": "/motion-previews/tripo/biped/football_save.avif",
+      "bytes": 50745,
+      "sha256": "0da6ecf85b9df0232e650809f3f0b3abddad1f4ec2f0e838a6519bd971641469",
+      "animated": true,
+      "name": "扑救"
+    },
+    {
+      "id": "football_pass",
+      "category": "sports",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/football_pass.avif",
+      "path": "/motion-previews/tripo/biped/football_pass.avif",
+      "bytes": 111171,
+      "sha256": "efcf69e9d615e1953bc196c46d941ec799723e6a22c9328856cb818cbd39db19",
+      "animated": true,
+      "name": "传球"
+    },
+    {
+      "id": "box_01",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/box_01.avif",
+      "path": "/motion-previews/tripo/biped/box_01.avif",
+      "bytes": 27021,
+      "sha256": "cf7f5847422217cb078b7a01c80aed6a08537f95be12f3c4d1d8bad0fe1f7822",
+      "animated": true,
+      "name": "拳击 1"
+    },
+    {
+      "id": "box_02",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/box_02.avif",
+      "path": "/motion-previews/tripo/biped/box_02.avif",
+      "bytes": 31531,
+      "sha256": "b8d91401a92e40d7f069639440a4877031e0c2370872efa830b2da7e2bdb37f9",
+      "animated": true,
+      "name": "拳击 2"
+    },
+    {
+      "id": "box_03",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/box_03.avif",
+      "path": "/motion-previews/tripo/biped/box_03.avif",
+      "bytes": 17671,
+      "sha256": "86605d550f9af7c49417a41f9f4127c44f36430246cbbbce8ecc70490b917678",
+      "animated": true,
+      "name": "拳击 3"
+    },
+    {
+      "id": "front_kick_01",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/front_kick_01.avif",
+      "path": "/motion-previews/tripo/biped/front_kick_01.avif",
+      "bytes": 34452,
+      "sha256": "11c39ae21678a9dcd830f44b7c69cf6c355497b26b8fd66a45cc2de2fd98b846",
+      "animated": true,
+      "name": "正踢 1"
+    },
+    {
+      "id": "front_kick_02",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/front_kick_02.avif",
+      "path": "/motion-previews/tripo/biped/front_kick_02.avif",
+      "bytes": 21121,
+      "sha256": "2b0c12cfd12da733850362c3443b5a905317d85b44eb4cdf157c3a2451f4e28b",
+      "animated": true,
+      "name": "正踢 2"
+    },
+    {
+      "id": "slash",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/slash.avif",
+      "path": "/motion-previews/tripo/biped/slash.avif",
+      "bytes": 43644,
+      "sha256": "58a4fe151f8d72677307f5c705be77e5cb244986c3fec7d1f1663fe349cdd2e3",
+      "animated": true,
+      "name": "挥砍"
+    },
+    {
+      "id": "shoot",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/shoot.avif",
+      "path": "/motion-previews/tripo/biped/shoot.avif",
+      "bytes": 49054,
+      "sha256": "3e0afc18c3aa8f8f300c40817a878f9dbc21fb09b36bca012c72821c6a0ab271",
+      "animated": true,
+      "name": "射击"
+    },
+    {
+      "id": "fire",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/fire.avif",
+      "path": "/motion-previews/tripo/biped/fire.avif",
+      "bytes": 5349,
+      "sha256": "56891b76420257c2f4b598cd4f43111c2b8f14316c8bcb39d2111782abc14dd5",
+      "animated": true,
+      "name": "开火"
+    },
+    {
+      "id": "cast_a_spell",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/cast_a_spell.avif",
+      "path": "/motion-previews/tripo/biped/cast_a_spell.avif",
+      "bytes": 36150,
+      "sha256": "d749e28b3ebffdc99f9fde7c257f93dfab09db0fac650fea96c75f317994baba",
+      "animated": true,
+      "name": "施法"
+    },
+    {
+      "id": "hurt",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/hurt.avif",
+      "path": "/motion-previews/tripo/biped/hurt.avif",
+      "bytes": 47274,
+      "sha256": "fe99d6fdefe9c93c6c70ad6214652987fc37ef62a799154e1fad53306342297d",
+      "animated": true,
+      "name": "受伤"
+    },
+    {
+      "id": "hit_to_body_01",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/hit_to_body_01.avif",
+      "path": "/motion-previews/tripo/biped/hit_to_body_01.avif",
+      "bytes": 18701,
+      "sha256": "2d5ca901368d1133717f92da7c5365f105fb582bc7f612c0e6de45f8bb1e3e7f",
+      "animated": true,
+      "name": "身体受击 1"
+    },
+    {
+      "id": "hit_to_body_02",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/hit_to_body_02.avif",
+      "path": "/motion-previews/tripo/biped/hit_to_body_02.avif",
+      "bytes": 25555,
+      "sha256": "6a39bb73480452cc0a47bc769d156de57cc87abbada72288cc0fa93b62930311",
+      "animated": true,
+      "name": "身体受击 2"
+    },
+    {
+      "id": "hit_to_head",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/hit_to_head.avif",
+      "path": "/motion-previews/tripo/biped/hit_to_head.avif",
+      "bytes": 26537,
+      "sha256": "94cd5e1b0ed94e5ebca51e3c82b3bdda8f9c9e34d4add113e863bf8557203871",
+      "animated": true,
+      "name": "头部受击"
+    },
+    {
+      "id": "hit_to_side",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/hit_to_side.avif",
+      "path": "/motion-previews/tripo/biped/hit_to_side.avif",
+      "bytes": 19138,
+      "sha256": "2ef8ec883ad1d721f0984346aec33cdb83896a43a1846dec82f7a9ba62348012",
+      "animated": true,
+      "name": "侧面受击"
+    },
+    {
+      "id": "hit_to_stomach",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/hit_to_stomach.avif",
+      "path": "/motion-previews/tripo/biped/hit_to_stomach.avif",
+      "bytes": 10287,
+      "sha256": "d3c7ab57d90ee03ad516a9d302e9c2edad1de7e2b4055e64a1d53e46bea0921c",
+      "animated": true,
+      "name": "腹部受击"
+    },
+    {
+      "id": "flee_01",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/flee_01.avif",
+      "path": "/motion-previews/tripo/biped/flee_01.avif",
+      "bytes": 33555,
+      "sha256": "dd74827c1cc73bf705c871aec2465fe5c565e91cceb052c12067126e5e2816f9",
+      "animated": true,
+      "name": "逃跑 1"
+    },
+    {
+      "id": "flee_02",
+      "category": "combat",
+      "url": "https://tripo-public.tripo3d.ai/studio_riging_data/biped/flee_02.avif",
+      "path": "/motion-previews/tripo/biped/flee_02.avif",
+      "bytes": 53975,
+      "sha256": "eb3235ae9394ed7c797a4f64fe8cc7b202804813441a619b584d27199ec44758",
+      "animated": true,
+      "name": "逃跑 2"
+    }
+  ]
+}

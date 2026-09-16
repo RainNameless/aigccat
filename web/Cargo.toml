@@ -1,0 +1,25 @@
+[package]
+name = "aigccat-web"
+version = "0.1.0"
+edition = "2021"
+description = "AI Asset Studio V1 - web backend (static frontend + MinIO asset store + Studio/Tripo generation)"
+
+[dependencies]
+axum = { version = "0.8", features = ["multipart"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["fs", "cors", "compression-gzip"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "multipart", "rustls-tls"], default-features = false }
+rust-s3 = { version = "0.35", features = ["tokio-rustls-tls"], default-features = false }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+base64 = "0.22"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+opt-level = 2
+lto = true
+codegen-units = 1
+strip = true

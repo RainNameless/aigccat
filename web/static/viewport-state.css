@@ -1,0 +1,64 @@
+/* Empty viewers expose no model tools; upload and creation stay available. */
+#model-stage:not([data-has-model="true"]) .viewer-tools,
+#model-stage:not([data-has-model="true"]) .viewport-dock,
+#model-stage:not([data-has-model="true"]) .axis-gizmo,
+#model-stage:not([data-has-model="true"]) .viewer-stats,
+.viewport:not([data-has-model="true"]) #version-select,
+.viewport:not([data-has-model="true"]) #save-preview,
+.viewport:not([data-has-model="true"]) #export-model,
+.viewport:not([data-has-model="true"]) .viewport-bottom {display:none!important}
+#model-stage .axis-gizmo {width:96px;height:96px;top:18px;right:18px;color:var(--text);filter:drop-shadow(0 6px 12px #0003)}
+.compass-face {fill:var(--surface);stroke:var(--border);stroke-width:1}
+.compass-ticks {fill:none;stroke:var(--muted);stroke-width:2;stroke-dasharray:1 9;opacity:.35}
+.axis-gizmo text {fill:var(--text);font-size:12px;font-weight:600;paint-order:stroke;stroke:var(--surface);stroke-width:4px}
+.compass-needle {fill:var(--accent);stroke:var(--text);stroke-width:.5}
+.compass-tail {fill:var(--muted);opacity:.35}
+.generation-indicator {position:absolute;inset:48px 0 0;z-index:6;display:grid;place-items:center;background:color-mix(in srgb,var(--stage) 94%,transparent);overflow:auto;padding:24px}
+.generation-indicator[hidden] {display:none}
+.generation-card {text-align:center;width:min(420px,100%);color:var(--text)}
+.generation-eyebrow {font-size:11px;font-weight:600;letter-spacing:4px;color:var(--muted)}
+.generation-orbit {position:relative;width:220px;height:220px;margin:26px auto;filter:drop-shadow(0 0 18px color-mix(in srgb,var(--accent) 15%,transparent))}
+.generation-orbit svg {width:100%;height:100%;overflow:visible}
+.generation-orbit circle {fill:none;transform-origin:100px 100px}
+.orbit-ticks {stroke:var(--muted);stroke-width:2;stroke-dasharray:1 7;opacity:.45}
+.orbit-track {stroke:var(--border);stroke-width:3}
+.orbit-value {stroke:var(--accent);stroke-width:4;stroke-linecap:round;transform:rotate(-90deg);transition:stroke-dasharray .7s ease}
+.orbit-scanner {stroke:var(--accent);stroke-width:1;stroke-dasharray:40 368;opacity:.5;animation:orbit-scan 3s linear infinite}
+.generation-number {position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap;align-content:center}
+.generation-number strong {font-size:52px;font-weight:500;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-2px}
+.generation-number>span {font-size:18px;color:var(--muted);align-self:center;margin-top:20px}
+.generation-number small {flex-basis:100%;font-size:12px;color:var(--muted);margin-top:10px;letter-spacing:2px}
+.generation-card h2 {font-size:20px;font-weight:600;letter-spacing:1px;margin:12px 0}
+.generation-card p {font-size:14px;color:var(--muted);margin:10px 0 24px}
+.generation-timing {display:flex;justify-content:center;gap:26px;font-size:12px;color:var(--muted);padding:16px 0;border-top:1px solid var(--border)}
+.generation-timing b {display:block;margin-top:8px;color:var(--text);font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}
+.generation-note {font-size:12px;color:var(--muted)}
+.is-generating #empty-stage,.is-generating #job-progress {display:none!important}
+@keyframes orbit-scan {to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.orbit-scanner{animation:none}.orbit-value{transition:none}}
+@media(max-height:650px){.generation-orbit{width:150px;height:150px;margin:12px auto}.generation-card p{margin-bottom:10px}.generation-indicator{padding:12px}}
+@media(max-width:600px){#model-stage .axis-gizmo{width:76px;height:76px;top:10px;right:10px}.generation-orbit{width:130px;height:130px;margin:6px auto}.generation-number strong{font-size:34px}.generation-card h2{font-size:16px}.generation-timing,.generation-note{display:none}.generation-indicator{inset:39px 0 0;padding:10px}}
+/* Keep statistics in the footer, outside the canvas and its floating dock. */
+#model-stage {position:static}
+#model-stage .viewer-stats {top:auto;bottom:8px;left:50%;right:auto;transform:translateX(-50%);width:max-content;max-width:calc(100% - 280px);font-size:12px;text-align:center;background:none;backdrop-filter:none;padding:4px 8px;line-height:1.5}
+.viewport-bottom {min-height:48px;flex-shrink:0}
+#selection-info {max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.viewer-display-settings {display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:2px 8px}
+.viewer-display-settings label {gap:8px;white-space:nowrap}
+.viewer-display-settings input[type=range] {width:100px;min-width:70px}
+#model-stage .viewer-tools {position:relative;z-index:6;flex-shrink:0}
+#model-stage:fullscreen,#model-stage.viewer-expanded {position:fixed;padding-bottom:40px}
+#model-stage:fullscreen .viewer-stats,#model-stage.viewer-expanded .viewer-stats {max-width:calc(100% - 24px)}
+@media(max-width:1000px){.viewport-bottom{min-height:72px;align-items:flex-start}#model-stage .viewer-stats{bottom:4px;max-width:calc(100% - 24px);font-size:11px}.viewer-display-settings{gap:10px;padding:2px 0}}
+
+.flow-steps > span {white-space:nowrap;font-size:12px}
+
+#model-stage[data-loading="true"]::after {content:"正在加载模型…";position:absolute;top:160px;left:50%;transform:translateX(-50%);z-index:7;background:var(--panel);color:var(--text);padding:10px 18px;border:1px solid var(--border);border-radius:20px;pointer-events:none}
+
+.asset-card {position:relative}
+.asset-load-overlay {position:absolute;inset:5px 5px auto;height:145px;border-radius:7px;background:color-mix(in srgb,var(--panel) 90%,transparent);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;pointer-events:none;color:var(--text);z-index:4;padding:12px}
+.asset-load-overlay [role=status] {font-size:12px;text-align:center}
+.asset-load-overlay progress {height:4px;width:100%;accent-color:var(--accent)}
+.asset-load-spinner {width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:asset-load-spin .9s linear infinite}
+@keyframes asset-load-spin {to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.asset-load-spinner{animation:none}}

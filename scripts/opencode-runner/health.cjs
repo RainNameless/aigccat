@@ -1,0 +1,1 @@
+fetch('http://127.0.0.1:4097/health', {headers:{authorization:'Bearer '+process.env.RIG_AGENT_TOKEN},signal:AbortSignal.timeout(4000)}).then(r=>{if(!r.ok)process.exit(1);return r.json()}).then(j=>process.exit(j.opencode?0:1)).catch(()=>process.exit(1));

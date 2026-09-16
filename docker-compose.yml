@@ -1,0 +1,116 @@
+services:
+  gateway:
+    image: node:22-alpine
+    command: ["node", "/app/gateway.mjs"]
+    user: "${AUTH_UID:-501}:${AUTH_GID:-20}"
+    volumes:
+      - ./scripts/auth-server:/app:ro
+      - ${HOME}/.config/aigccat/auth/data:/data
+      - ${HOME}/.config/aigccat/auth/secrets:/secrets:ro
+    ports:
+      - "8080:8080"
+    environment:
+      APP_UPSTREAM: http://web:8080
+    depends_on:
+      - web
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    restart: unless-stopped
+
+  opencode:
+    build:
+      context: ./scripts/opencode-runner
+      args:
+        HTTP_PROXY: ${BUILD_PROXY:-}
+        HTTPS_PROXY: ${BUILD_PROXY:-}
+    environment:
+      RIG_AGENT_TOKEN: ${RIG_AGENT_TOKEN:?set RIG_AGENT_TOKEN in .env}
+      OPENCODE_SERVER_PASSWORD: ${RIG_AGENT_TOKEN}
+      AIGCCAT_URL: http://web:8080
+      RIG_HOST_URL: http://host.docker.internal:8791
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - opencode_data:/root/.local/share/opencode
+      - ${HOME}/Library/Application Support/aigccat/opencode/tasks:/tasks
+    mem_limit: 2g
+    restart: unless-stopped
+    init: true
+    healthcheck:
+      test: ["CMD", "node", "health.cjs"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-aigccat}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    mem_limit: 512m
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: ./web
+      args:
+        # 构建期代理（crates.io），宿主代理走 host.docker.internal
+        HTTP_PROXY: ${BUILD_PROXY:-}
+        HTTPS_PROXY: ${BUILD_PROXY:-}
+        NO_PROXY: localhost,127.0.0.1
+    volumes:
+      # 开发期前端热更新：改 static/ 免重建镜像
+      - ./web/static:/srv/static:ro
+      - services_config:/srv/config
+    # Only the authenticated gateway publishes the web service.
+    # 容器内访问宿主机 Blender 工作器（scripts/blender/worker_server.py）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      PORT: "8080"
+      RIG_AGENT_URL: http://opencode:4097
+      RIG_AGENT_TOKEN: ${RIG_AGENT_TOKEN}
+      STUDIO_WORKER_URL: http://host.docker.internal:8790
+      STUDIO_WORKER_TOKEN: ${STUDIO_WORKER_TOKEN:-}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-aigccat}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+      MINIO_BUCKET: game-assets
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-mini}
+      TRIPO_API_KEY: ${TRIPO_API_KEY:-}
+      IMAGE_API_KEY: ${IMAGE_API_KEY:-}
+      IMAGE_BASE_URL: ${IMAGE_BASE_URL:-}
+      IMAGE_MODEL: ${IMAGE_MODEL:-gpt-image-1}
+      # 图像尺寸（形如 512x512，单边 ≤2048）；none 表示不强设尺寸
+      # 默认 512x512：中转网关 60s 硬超时，1024x1024 的 gpt-image-2 必然 504
+      IMAGE_SIZE: ${IMAGE_SIZE:-512x512}
+      # HTTPS 反代部署时显式设置公开 Origin；空值使用请求 Host 的 HTTP Origin
+      SERVICES_PUBLIC_ORIGIN: ${SERVICES_PUBLIC_ORIGIN:-}
+      # 宿主机 Blender 工作器（建模计划 → GLB / 减面 / 重拓扑）
+      BLENDER_WORKER_URL: ${BLENDER_WORKER_URL:-http://host.docker.internal:8788}
+      # 视觉模型（看图输出建模计划），缺省 gpt-6-astra
+      VISION_MODEL: ${VISION_MODEL:-gpt-6-astra}
+    depends_on:
+      - minio
+    mem_limit: 512m
+    restart: unless-stopped
+
+volumes:
+  minio_data: {}
+  services_config: {}
+  opencode_data: {}

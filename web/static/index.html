@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>aigccat · 3D 工作台</title>
+    <link rel="stylesheet" href="/workbench.css?v=20260915-independent-2" />
+    <link rel="stylesheet" href="/model-actions.css?v=4" />
+    <link rel="stylesheet" href="/rig-agent.css?v=1" />
+    <link rel="stylesheet" href="/image-resources.css?v=3" />
+    <link rel="stylesheet" href="/shell.css?v=13" />
+    <link rel="stylesheet" href="/viewport-state.css?v=5" />
+    <link rel="stylesheet" href="/asset-progress.css?v=1" />
+    <script src="/shell.js?v=13"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/vendor/three-0.160.0/build/three.module.js",
+          "three/addons/": "/vendor/three-0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+    <script src="/vendor/lucide.min.js" defer></script>
+  </head>
+  <body>
+    <header class="studio-header">
+      <a class="brand" href="/" aria-label="aigccat 工作台"
+        ><i data-lucide="boxes"></i><strong>aigccat</strong></a
+      >
+      <!-- 顶部导航由 shell.js 统一注入（此处占位 header 会被整体替换） -->
+      <div class="header-end">
+        <button id="assets-header" title="资产栏"><i data-lucide="panel-right"></i></button>
+        <span id="service-status"><span class="status-dot"></span>检查服务</span
+        ><button id="tasks-button" title="任务记录">
+          <i data-lucide="list-checks"></i></button
+        ><a href="/settings.html" title="服务设置"
+          ><i data-lucide="settings-2"></i
+        ></a>
+      </div>
+    </header>
+    <main class="studio-layout">
+      <aside class="control-panel" aria-label="工具参数">
+        <nav id="tool-rail" class="tool-rail" aria-label="工作台工具"></nav>
+        <section class="tool-panel">
+          <h1 id="tool-title"></h1>
+          <div id="parameters" class="panel-scroll"></div>
+          <footer class="panel-footer">
+            <div id="operation-context"></div>
+            <button class="primary" id="run-tool"></button>
+          </footer>
+        </section>
+      </aside>
+      <section class="viewport" aria-label="预览工作区">
+        <div class="viewport-heading">
+          <div>
+            <span class="status-dot"></span
+            ><strong id="asset-title">工作台</strong
+            ><span id="asset-status"></span>
+          </div>
+          <nav id="flow-steps" class="flow-steps" aria-label="创作流程步骤"></nav>
+          <div>
+            <button id="new-asset" title="新建资产">
+              <i data-lucide="plus"></i></button
+            ><button id="model-history" title="查看模型历史" aria-label="查看模型历史"><i data-lucide="history"></i></button><select id="version-select" aria-label="模型版本">
+              <option value="">选择版本</option></select
+            ><button id="save-preview" title="保存当前视角为资产缩略图">
+              <i data-lucide="image"></i></button
+            ><button id="export-model" title="导出模型">
+              <i data-lucide="download"></i>
+            </button>
+          </div>
+        </div>
+        <div id="model-stage" class="model-stage"></div>
+        <div id="image-stage" class="image-stage" hidden aria-label="图片工作区"></div>
+        <div id="empty-stage" class="empty-stage">
+          <i data-lucide="box"></i>
+          <h2>选择资产</h2>
+        </div>
+        <div class="viewport-bottom">
+          <span id="selection-info">未选择部件</span>
+          <div>
+            <button id="undo" title="上一个历史节点">
+              <i data-lucide="undo-2"></i></button
+            ><button id="redo" title="下一个历史节点">
+              <i data-lucide="redo-2"></i></button
+            ><button id="toggle-assets" title="显示或隐藏资产栏">
+              <i data-lucide="panel-right"></i>
+            </button>
+          </div>
+        </div>
+        <div id="job-progress" class="job-progress" hidden>
+          <div>
+            <span id="job-text"></span
+            ><button id="dismiss-job" title="收起任务状态">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+          <progress max="100" value="0"></progress>
+        </div>
+      </section>
+      <aside class="asset-panel" aria-label="资产与属性">
+        <div class="asset-tabs" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="assets">
+            <i data-lucide="boxes"></i>资产</button
+          ><button role="tab" aria-selected="false" data-tab="properties">
+            <i data-lucide="sliders-horizontal"></i>属性</button
+          ><button role="tab" aria-selected="false" data-tab="history">
+            <i data-lucide="history"></i>历史
+          </button><button role="tab" aria-selected="false" data-tab="media">
+            <i data-lucide="images"></i>图片
+          </button><button role="tab" aria-selected="false" data-tab="build">
+            <i data-lucide="git-branch"></i>构建
+          </button>
+        </div>
+        <section id="assets-tab">
+          <div class="asset-toolbar">
+            <button data-collection="all" class="active" title="全部资产">
+              <i data-lucide="layout-grid"></i></button
+            ><button data-collection="favorites" title="收藏资产">
+              <i data-lucide="star"></i></button
+            ><button data-collection="archived" title="回收站">
+              <i data-lucide="archive"></i></button
+            ><button id="refresh-assets" title="刷新资产">
+              <i data-lucide="refresh-cw"></i></button
+            ><button id="manage-assets" title="批量管理">
+              <i data-lucide="list-checks"></i></button
+            ><span id="asset-count"></span>
+          </div>
+          <input
+            id="asset-search"
+            type="search"
+            placeholder="搜索资产…"
+            aria-label="搜索资产"
+          />
+          <div class="filter-row">
+            <select id="type-filter" aria-label="资产类型">
+              <option value="">全部类型</option></select
+            ><select id="status-filter" aria-label="资产状态">
+              <option value="">全部状态</option>
+              <option value="published">已发布</option>
+              <option value="model_review">模型已生成</option>
+              <option value="imported">已导入</option>
+              <option value="spec_ready">描述就绪</option>
+            </select>
+          </div>
+          <button id="upload-model" class="upload-model">
+            <i data-lucide="upload"></i>上传 3D 模型<small
+              >GLB / OBJ / STL / FBX · 150 MB</small
+            >
+          </button>
+          <div id="batch-actions" hidden>
+            <button id="batch-export" title="批量导出">
+              <i data-lucide="download"></i></button
+            ><button id="batch-archive" title="移入回收站或恢复">
+              <i data-lucide="archive-restore"></i></button
+            ><button id="select-all">全选</button
+            ><span id="selected-count"></span>
+          </div>
+          <div id="asset-list" class="asset-list"></div>
+        </section>
+        <section id="properties-tab" class="right-scroll" hidden></section>
+        <section id="history-tab" class="right-scroll" hidden></section>
+        <section id="media-tab" class="right-scroll" hidden></section>
+        <section id="build-tab" class="right-scroll" hidden></section>
+      </aside>
+    </main>
+    <dialog id="dialog">
+      <header>
+        <h2 id="dialog-title"></h2>
+        <button id="close-dialog" title="关闭"><i data-lucide="x"></i></button>
+      </header>
+      <div id="dialog-body"></div>
+    </dialog>
+    <div id="toast" role="status" hidden></div>
+    <input id="model-file" type="file" accept=".glb,.obj,.stl,.fbx" hidden />
+    <input id="version-file" type="file" accept=".glb" hidden />
+    <input
+      id="image-file"
+      type="file"
+      accept="image/png,image/jpeg,image/webp"
+      hidden
+    />
+    <script type="module" src="/workbench.js?v=20260916-image-drag-18"></script>
+  </body>
+</html>

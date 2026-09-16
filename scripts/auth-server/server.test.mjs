@@ -1,0 +1,47 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {createAuthServer} from './server.mjs';
+const origin='https://<your-domain>',secret='proxy-test-secret',pass='Example-test-password-2026';
+test('account lifecycle, permissions, closed registration and persistence',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'aigccat-auth-test-'));let server;
+ const start=async()=>{server=await createAuthServer({dir,origin,proxyToken:secret,bootstrap:{username:'admin',password:pass}});await new Promise(r=>server.listen(0,'127.0.0.1',r));return 'http://127.0.0.1:'+server.address().port;};let base=await start();
+ const request=async(p,{method='GET',body,cookie,headers={},token=secret}={})=>{const r=await fetch(base+p,{method,headers:{'x-aigccat-auth-proxy':token,origin,'content-type':'application/json',...(cookie?{cookie}:{}),...headers},...(body?{body:JSON.stringify(body)}:{})});const j=await r.json();return {status:r.status,j,cookie:r.headers.get('set-cookie')?.split(';')[0],setCookie:r.headers.get('set-cookie')};};
+ try{
+  assert.equal((await request('/api/auth/me')).status,401);
+  assert.equal((await request('/api/auth/register',{method:'POST',body:{}})).status,403);
+  assert.equal((await request('/api/auth/login',{method:'POST',body:{username:'admin',password:pass},headers:{origin:'https://evil.example'}})).status,403);
+  assert.equal((await request('/api/auth/login',{method:'POST',body:{username:'admin',password:'incorrect'}})).status,401);
+  assert.equal((await request('/api/auth/me',{token:'forged'})).status,403);
+  const login=await request('/api/auth/login',{method:'POST',body:{username:'admin',password:pass,remember:true}});assert.equal(login.status,200);assert.match(login.setCookie,/HttpOnly/);assert.match(login.setCookie,/Secure/);assert.match(login.setCookie,/SameSite=Lax/);let admin=login.cookie;
+  assert.equal((await request('/api/admin/users/'+login.j.user.id,{method:'PATCH',cookie:admin,body:{enabled:false}})).status,400);
+  const create=await request('/api/admin/users',{method:'POST',cookie:admin,body:{username:'member',password:pass,role:'member'}});assert.equal(create.status,201);const uid=create.j.user.id;
+  let member=(await request('/api/auth/login',{method:'POST',body:{username:'member',password:pass}})).cookie;
+  assert.equal((await request('/api/admin/users',{cookie:member})).status,403);
+  assert.equal((await request('/internal/check',{cookie:member,headers:{'x-original-uri':'/admin.html'}})).status,200);
+  assert.equal((await request('/internal/check',{cookie:member,headers:{'x-original-uri':'/model-chat.html'}})).status,403);
+  assert.equal((await request('/internal/check',{cookie:member,headers:{'x-original-uri':'/api/settings/catalog','x-original-method':'PUT','x-original-origin':origin}})).status,403);
+  assert.equal((await request('/internal/check',{cookie:member,headers:{'x-original-uri':'/api/settings/catalog','x-original-method':'GET'}})).status,200);
+  assert.equal((await request('/internal/check',{cookie:member,headers:{'x-original-uri':'/api/assets','x-original-method':'POST','x-original-origin':'https://evil.example'}})).status,403);
+  assert.equal((await request('/api/admin/users/'+uid,{method:'PATCH',cookie:admin,body:{enabled:false}})).status,200);
+  assert.equal((await request('/api/auth/me',{cookie:member})).status,401);
+  assert.equal((await request('/api/auth/login',{method:'POST',body:{username:'member',password:pass}})).status,401);
+  await request('/api/admin/users/'+uid,{method:'PATCH',cookie:admin,body:{enabled:true}});
+  await request('/api/admin/users/'+uid+'/password',{method:'POST',cookie:admin,body:{password:pass+'-reset'}});
+  assert.equal((await request('/api/auth/login',{method:'POST',body:{username:'member',password:pass}})).status,401);
+  member=(await request('/api/auth/login',{method:'POST',body:{username:'member',password:pass+'-reset'}})).cookie;
+  const second=(await request('/api/auth/login',{method:'POST',body:{username:'member',password:pass+'-reset'}})).cookie;
+  assert.equal((await request('/api/auth/password',{method:'POST',cookie:member,body:{old_password:'wrong',new_password:pass+'-new'}})).status,400);
+  const changed=await request('/api/auth/password',{method:'POST',cookie:member,body:{old_password:pass+'-reset',new_password:pass+'-new'}});assert.equal(changed.status,200);member=changed.cookie;
+  assert.equal((await request('/api/auth/me',{cookie:second})).status,401);
+  await new Promise(r=>server.close(r));base=await start();assert.equal((await request('/api/auth/me',{cookie:admin})).status,200);
+  assert.equal((await request('/api/auth/me',{cookie:member})).status,200);
+  await request('/api/auth/logout',{method:'POST',cookie:member});assert.equal((await request('/api/auth/me',{cookie:member})).status,401);
+  const list=await request('/api/admin/users',{cookie:admin});assert.ok(!JSON.stringify(list.j).includes('password_hash'));
+  const persisted=fs.readFileSync(path.join(dir,'accounts.json'),'utf8');assert.ok(!persisted.includes(pass));assert.ok(!persisted.includes(admin.split('=')[1]));
+  assert.equal((await request('/api/admin/overview',{cookie:admin})).j.registration_open,false);
+ }finally{await new Promise(r=>server.close(r));fs.rmSync(dir,{recursive:true,force:true});}
+});
+test('login failures are rate limited',async()=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'aigccat-auth-limit-'));const server=await createAuthServer({dir,origin,proxyToken:secret,bootstrap:{username:'admin',password:pass},loginLimit:2});await new Promise(r=>server.listen(0,'127.0.0.1',r));try{const send=()=>fetch('http://127.0.0.1:'+server.address().port+'/api/auth/login',{method:'POST',headers:{'x-aigccat-auth-proxy':secret,origin,'content-type':'application/json'},body:JSON.stringify({username:'admin',password:'bad'})});assert.equal((await send()).status,401);assert.equal((await send()).status,401);assert.equal((await send()).status,429);}finally{await new Promise(r=>server.close(r));fs.rmSync(dir,{recursive:true,force:true});}});

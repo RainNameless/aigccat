@@ -1,0 +1,56 @@
+[
+  {
+    "id": "figurine",
+    "name": "手办 · 柔和卡通",
+    "prompt": "A premium collectible figurine of an adult female explorer in a teal jacket and beige trousers, friendly stylized cartoon proportions, full body on a small round display base, smooth resin material.",
+    "asset": "/api/assets/props/prp_asset_204",
+    "job": "job_002",
+    "status": "done",
+    "error": null
+  },
+  {
+    "id": "weapon",
+    "name": "高清武器 · 写实材质",
+    "prompt": "An original fantasy longsword, complete blade and handle visible, brushed steel blade, intricate brass guard, burgundy leather grip. Photorealistic detailed PBR materials, elegant believable construction. No person.",
+    "asset": "/api/assets/props/prp_asset_205",
+    "job": "job_002",
+    "status": "done",
+    "error": null
+  },
+  {
+    "id": "part",
+    "name": "机械部件 · 硬表面",
+    "prompt": "One standalone sci-fi mechanical shoulder joint assembly, satin titanium shell, visible bolts, orange seal and black pivot, precise industrial hard surface design, clear assembled silhouette, no other parts.",
+    "asset": "/api/assets/props/prp_asset_206",
+    "job": "job_002",
+    "status": "done",
+    "error": null
+  },
+  {
+    "id": "house",
+    "name": "小屋 · 低多边形",
+    "prompt": "A single charming cottage, blue slate roof, warm timber door, cream walls, deliberately faceted low-poly geometric surfaces with flat shading, entire building visible, no landscape.",
+    "asset": "/api/assets/props/prp_asset_207",
+    "job": "job_002",
+    "status": "done",
+    "error": null
+  },
+  {
+    "id": "ceramic",
+    "name": "陶瓷摆件 · 黏土质感",
+    "prompt": "One handmade ceramic bird sculpture with rounded organic shape, subtle clay imperfections and matte pastel peach glaze, minimalist sculptural design.",
+    "asset": "/api/assets/props/prp_asset_208",
+    "job": "job_002",
+    "status": "done",
+    "error": null
+  },
+  {
+    "id": "character",
+    "name": "人物 · 动漫风格",
+    "prompt": "One adult human male traveling scholar, age 28, normal human anatomy, indigo long coat, cream shirt and leather boots, full body standing A-pose, polished Japanese anime cel-shaded 3D character aesthetic, no weapon.",
+    "asset": "/api/assets/props/prp_asset_209",
+    "job": "job_002",
+    "status": "done",
+    "error": null
+  }
+]
