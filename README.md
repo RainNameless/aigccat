@@ -4,7 +4,7 @@
 
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 
-[Telegram 社区](https://t.me/aigccat) · [English](README.en.md) · [部署指南](docs/DEPLOYMENT.md) · [文档索引](docs/README.md)
+Telegram 社区：https://t.me/aigccat · [English](README.en.md) · [部署指南](docs/DEPLOYMENT.md) · [文档索引](docs/README.md)
 
 ---
 
