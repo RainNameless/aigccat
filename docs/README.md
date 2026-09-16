@@ -7,6 +7,7 @@
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | **部署指南**：本机部署、生产自托管、宿主工作器、升级、备份、常见问题 |
 | [`UI.md`](UI.md) | **界面规范**：页面路由、主题变量、11 个工具、查看器、改前端的硬性约定 |
 | [`MCP.md`](MCP.md) | **MCP 接入指南**：17 个工具、推送协议、归类规则、对话示例 |
+| [`SPONSORSHIP.md`](SPONSORSHIP.md) | **赞助与平台接入**：我们缺哪些额度 / 服务器，承诺与边界 |
 | [`../THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) | 第三方组件与许可 |
 | [`../LICENSE`](../LICENSE) | Apache License 2.0 |
 

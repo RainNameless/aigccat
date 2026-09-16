@@ -4,7 +4,7 @@
 
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 
-Telegram 社区：https://t.me/aigccat · [English](README.en.md) · [部署指南](docs/DEPLOYMENT.md) · [文档索引](docs/README.md)
+Telegram 社区：https://t.me/aigccat · [English](README.en.md) · [部署指南](docs/DEPLOYMENT.md) · [文档索引](docs/README.md) · [赞助与接入](docs/SPONSORSHIP.md)
 
 ---
 
@@ -13,6 +13,24 @@ Telegram 社区：https://t.me/aigccat · [English](README.en.md) · [部署指�
 aigccat 是一条**自托管的 AI 3D 资产管线**：从文字或图片生成模型，带版本管理、校验、后处理、绑骨动作和引擎交付，全部跑在你自己的机器上，资产存在你自己的 MinIO 里。
 
 它不是"能生成模型"的 demo，而是为了解决真实游戏项目里的一堆脏问题：脸型雷同、微调要全量重生成、导出到引擎后变品红、清理脚本误删已发布资产、API 成本无感、审核只看一张图看不准。
+
+## 先说我们的窘迫：我们在找赞助
+
+直说 —— **这个项目目前全部跑在一台个人电脑上**。没有服务器，也**没有任何一家生成平台的付费额度**。
+
+后果是：只有 Tripo 的订阅链路真正出过模型，其余平台（Meshy / Rodin / Hunyuan3D / TRELLIS 2 / Hi3D）**连一次真实调用都还没付得起**，一直挂在「未接入」。我们有条规矩：**没跑通就不写「支持」** —— 所以这些对我们不是锦上添花，是**能不能把功能做出来**的前提。
+
+任意一种都帮得上：
+
+| 需要 | 具体是什么 | 拿来做什么 |
+|---|---|---|
+| **API 额度 / Key** | Meshy、Rodin(Hyper3D)、Hunyuan3D、Hi3D 的官方 API 额度 | 把这四家的接入做完并实测 |
+| **TRELLIS 2 的调用额度** | 按次计费的云端额度（如 Replicate / fal.ai，约 $0.82/次） | 它没有自己的官方 SaaS，我们打算调云端 |
+| **服务器** | 一台能常驻的小机器 / VPS（**不需要显卡**） | **部署在线预览环境**，让社区不用自己装就能试用 |
+| **订阅** | 上述平台含 API 权益的订阅档 | 同第一项 |
+
+细节、边界与我们的承诺见 **[赞助与平台接入](docs/SPONSORSHIP.md)**。
+想聊直接来 **[Telegram 社区](https://t.me/aigccat)** —— 哪怕只是几十次生成额度、或一台闲置的小服务器，都真的有用。
 
 ## 界面
 
@@ -146,7 +164,11 @@ docker compose -p aigccat -f docker-compose.yml up -d --build
 - Tripo **API** 建模链路代码就绪，但因账户余额为 0 **从未完成真实验收**；实际产出全部来自 Studio 网页订阅链路
 - Studio **自由提示词动作**、**任意形体绑骨**未接入（人形已实测，其他形体不作通用保证）
 - **AI 贴图**（Studio texture）3 次上游失败，前端已暂禁用
-- HY3D、提示词→骨骼动画、Unity 适配器实机冒烟 未完成
+- 提示词→骨骼动画、Unity 适配器实机冒烟 未完成
+
+**其他生成平台全部未接入**：Meshy、Rodin / Hyper3D、Hunyuan3D、TRELLIS 2、Hi3D。
+接口层是按可插拔多家服务设计的，但这几家我们**连一次真实调用都还没付得起** —— 没有真实调用就不能写「支持」。
+正在找赞助，见文首「[先说我们的窘迫](#先说我们的窘迫我们在找赞助)」。
 
 ## 已知限制
 
@@ -179,6 +201,15 @@ mcp_server/     MCP 服务
 - 使用前请自行确认遵守相应服务的条款
 
 第三方组件许可见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+
+## 赞助者
+
+**目前还没有 —— 你可以是第一个。**
+
+这一节会随赞助增加，写明资助者（或匿名的「一位社区成员」）以及他资助了哪个平台 / 哪台机器。
+
+我们需要的是：[API 额度与平台订阅](docs/SPONSORSHIP.md)（Meshy / Rodin / Hunyuan3D / TRELLIS 2 / Hi3D），
+以及**一台跑在线预览环境的小服务器**（不需要显卡）。来 [Telegram 社区](https://t.me/aigccat) 说一声就行。
 
 ## 许可证
 

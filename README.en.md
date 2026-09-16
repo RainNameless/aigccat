@@ -4,7 +4,7 @@ A general-purpose 3D game asset platform — describe what you want in natural l
 
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 
-Telegram community: https://t.me/aigccat · [中文](README.md) · [Deployment Guide](docs/DEPLOYMENT.md) · [Docs Index](docs/README.md)
+Telegram community: https://t.me/aigccat · [中文](README.md) · [Deployment Guide](docs/DEPLOYMENT.md) · [Docs Index](docs/README.md) · [Sponsorship](docs/SPONSORSHIP.md)
 
 ---
 
@@ -13,6 +13,29 @@ Telegram community: https://t.me/aigccat · [中文](README.md) · [Deployment G
 aigccat is a **self-hosted AI 3D asset pipeline**: generate models from text or images, with versioning, validation, post-processing, rigging/animation and engine delivery — all running on your own machine, with assets stored in your own MinIO.
 
 It is not a "look, it makes a model" demo. It exists to solve the unglamorous problems of real game projects: every NPC ends up with the same face, a small tweak forces a full regeneration, materials turn magenta after export, a cleanup script deletes a published asset, API costs are invisible, and reviewers are asked to approve from a single image.
+
+## First, our situation: we're looking for sponsors
+
+To be blunt — **this project currently runs entirely on one personal computer.** No server, and **not a
+single paid credit on any generation platform.**
+
+As a result, only the Tripo subscription path has ever produced real models. Every other platform
+(Meshy, Rodin, Hunyuan3D, TRELLIS 2, Hi3D) **has never had a single real call paid for**, and stays
+listed as "not integrated". We have one hard rule: **if it hasn't run, we don't write "supported"** —
+so credits aren't a nice-to-have for us, they're the difference between shipping a feature and not.
+
+Any of these helps:
+
+| What we need | Specifically | Used for |
+|---|---|---|
+| **API credits / keys** | official API credits for Meshy, Rodin (Hyper3D), Hunyuan3D, Hi3D | finishing and actually testing those integrations |
+| **TRELLIS 2 run credits** | pay-per-run cloud credits (e.g. Replicate / fal.ai, ≈$0.82 per run) | it has no first-party SaaS, so we'd call it via cloud |
+| **A server** | a small always-on box or VPS (**no GPU needed**) | **hosting an online preview environment** so people can try it without installing anything |
+| **Subscriptions** | plans on the above platforms that include API credits | same as the first item |
+
+Details, boundaries and our commitments: **[Sponsorship & Platform Integration](docs/SPONSORSHIP.md)**.
+Say hi in the **[Telegram community](https://t.me/aigccat)** — even a few dozen generations or an idle
+little server genuinely helps.
 
 ## Screenshots
 
@@ -146,7 +169,12 @@ For host workers, public deployment and troubleshooting, see the **[Deployment G
 - The Tripo **API** path exists but was **never verified end to end** — the account balance was 0. Everything actually produced came through the Studio web-subscription path
 - Studio **free-prompt motion** and **arbitrary-body rigging** are not wired up (humanoid is tested; other body types are not guaranteed)
 - **AI texturing** (Studio texture) failed upstream three times; the frontend entry is disabled
-- HY3D, prompt-to-skeletal-animation, and a real-device Unity adapter smoke test are unfinished
+- Prompt-to-skeletal-animation and a real-device Unity adapter smoke test are unfinished
+
+**Other generation platforms are not integrated at all**: Meshy, Rodin / Hyper3D, Hunyuan3D,
+TRELLIS 2, Hi3D. The provider layer is built to be pluggable, but we have not been able to pay for a
+single real call on any of them — and without real calls we don't write "supported".
+We're looking for sponsors, see the top of this file.
 
 ## Known limitations
 
@@ -179,6 +207,17 @@ aigccat is a **self-hosted tool** and ships with no third-party quota:
 - Make sure your usage complies with the terms of the respective services
 
 Third-party component licenses are listed in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+## Sponsors
+
+**None yet — you could be the first.**
+
+This section will list supporters (or "a community member" if you prefer to stay anonymous) together
+with whatever they funded.
+
+What we're looking for: [API credits and platform subscriptions](docs/SPONSORSHIP.md)
+(Meshy / Rodin / Hunyuan3D / TRELLIS 2 / Hi3D), plus **one small server to host an online preview
+environment** (no GPU needed). Just say hi in the [Telegram community](https://t.me/aigccat).
 
 ## License
 
