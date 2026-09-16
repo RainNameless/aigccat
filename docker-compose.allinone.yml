@@ -1,0 +1,68 @@
+# aigccat 单容器版 —— 给「只想快点跑起来」的人
+#
+# 一个容器 = 存储(MinIO) + 后端(web) + 鉴权(gateway) + AI 绑骨(opencode)。
+# 首次启动自动生成密钥与初始账号，不用先配 .env。
+#
+# 用法（二选一）：
+#   1) 直接用预构建镜像（推荐，零编译）：
+#        docker compose -f docker-compose.allinone.yml up -d
+#   2) 从源码本地构建：
+#        docker compose -f docker-compose.allinone.yml up -d --build
+#
+# 打开 http://localhost:8080 ；初始账号密码在首次启动的日志里（docker compose logs）。
+#
+# 可选：在仓库根目录建一个 .env，compose 会自动读取这些变量：
+#   OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL   文字模型（生成计划、命名等）
+#   TRIPO_API_KEY                                     Tripo API 建模（可选）
+#   IMAGE_API_KEY / IMAGE_BASE_URL / IMAGE_MODEL     图片模型（可选）
+#   AUTH_ORIGIN                                      用 HTTPS 反代暴露时的公开地址，
+#                                                    如 https://aigccat.example.com
+#   AIGCCAT_ADMIN_PASSWORD / MINIO_ROOT_PASSWORD     固定初始密码（不设则自动生成）
+#
+# 想换数据目录：把下面 volumes 的 aigccat-data 换成宿主路径，例如 ./aigccat-data:/data
+
+# 显式项目名：与 docker-compose.yml（多容器版）用同一个目录名解析成不同项目，
+# 避免有人在老部署上误跑 `docker compose up` 把正在跑的容器顶掉。
+name: aigccat-allinone
+
+services:
+  aigccat:
+    image: ghcr.io/rainnameless/aigccat:latest
+    build:
+      context: .
+      dockerfile: deploy/allinone/Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      # 所有状态都在这一个卷里：对象存储、账号、配置、AI 任务
+      # 备份 = 备份它；迁移 = 拷走它。
+      - aigccat-data:/data
+    environment:
+      # 全部可选。留空则由容器首次启动时自动生成并持久化到 /data/aigccat.env
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-aigccat}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
+      AIGCCAT_ADMIN_PASSWORD: ${AIGCCAT_ADMIN_PASSWORD:-}
+      RIG_AGENT_TOKEN: ${RIG_AGENT_TOKEN:-}
+      AUTH_ORIGIN: ${AUTH_ORIGIN:-}
+      # 生成能力（不配也能跑，只是生成类功能不可用）
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      TRIPO_API_KEY: ${TRIPO_API_KEY:-}
+      IMAGE_API_KEY: ${IMAGE_API_KEY:-}
+      IMAGE_BASE_URL: ${IMAGE_BASE_URL:-}
+      IMAGE_MODEL: ${IMAGE_MODEL:-}
+      # 宿主工作器令牌（只用宿主 Blender 工作器时需要）
+      STUDIO_WORKER_TOKEN: ${STUDIO_WORKER_TOKEN:-}
+      # 宿主工作器地址（默认指向宿主机上的 8788/8790/8791；容器内可留默认）
+      BLENDER_WORKER_URL: ${BLENDER_WORKER_URL:-http://host.docker.internal:8788}
+      STUDIO_WORKER_URL: ${STUDIO_WORKER_URL:-http://host.docker.internal:8790}
+      RIG_HOST_URL: ${RIG_HOST_URL:-http://host.docker.internal:8791}
+    extra_hosts:
+      # Linux 上访问宿主机需要这行；Docker Desktop（macOS/Windows）自带
+      - "host.docker.internal:host-gateway"
+    mem_limit: 3g
+    restart: unless-stopped
+
+volumes:
+  aigccat-data: {}

@@ -90,7 +90,9 @@ export async function createAuthServer({dir,origin,proxyToken,bootstrap,loginLim
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  const dir=process.env.AUTH_DATA_DIR||'/var/lib/aigccat-auth',bootstrapFile=path.join(dir,'bootstrap.json');
  const bootstrap=fs.existsSync(bootstrapFile)?JSON.parse(fs.readFileSync(bootstrapFile)):null;
- const server=await createAuthServer({dir,origin:process.env.AUTH_ORIGIN||'https://<your-domain>',proxyToken:process.env.AUTH_PROXY_TOKEN,bootstrap});
+ // 默认值必须是合法 URL（原来写的占位串会让 new URL() 每次都失败 → 所有请求 400）。
+ // .invalid 是 RFC 2606 保留域名，不会等于任何真实 Host。
+ const server=await createAuthServer({dir,origin:process.env.AUTH_ORIGIN||'http://aigccat.invalid',proxyToken:process.env.AUTH_PROXY_TOKEN,bootstrap});
  if(bootstrap)fs.unlinkSync(bootstrapFile);
  server.listen(Number(process.env.PORT||18081),'127.0.0.1',()=>console.log('aigccat account service ready'));
 }

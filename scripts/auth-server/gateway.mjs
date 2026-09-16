@@ -7,8 +7,17 @@ import {pathToFileURL} from 'node:url';
 import {createAuthServer} from './server.mjs';
 const equal=(a,b)=>typeof a==='string'&&!!b&&Buffer.byteLength(a)===Buffer.byteLength(b)&&crypto.timingSafeEqual(Buffer.from(a),Buffer.from(b));
 function localHost(host){return host==='localhost'||host==='[::1]'||isIP(host)===4&&(/^127\./.test(host)||/^10\./.test(host)||/^192\.168\./.test(host)||/^172\.(1[6-9]|2\d|3[01])\./.test(host));}
-export async function createGateway({dir,proxyToken,automationToken,upstream,publicOrigin='https://<your-domain>',bootstrap}){
+// 公开 Origin 的默认值必须是「合法的 URL」，否则 new URL() 会直接抛错把进程带崩。
+// 选定 .invalid（RFC 2606 保留域名）：永远不会等于任何真实请求的 Host，
+// 于是默认状态下 remote 分支恒为 false —— 公开入口关闭，本地/内网访问照常。
+const DEFAULT_PUBLIC_ORIGIN='http://aigccat.invalid';
+function normalizeOrigin(v){
+ if(!v)return DEFAULT_PUBLIC_ORIGIN;
+ try{const u=new URL(v);if(u.protocol!=='http:'&&u.protocol!=='https:')throw Error('must be http(s)');return u.origin;}catch(e){console.warn(`[gateway] AUTH_ORIGIN 不是合法的 http(s) 地址，已忽略：${v}（${e.message}）`);return DEFAULT_PUBLIC_ORIGIN;}
+}
+export async function createGateway({dir,proxyToken,automationToken,upstream,publicOrigin=DEFAULT_PUBLIC_ORIGIN,bootstrap}){
  if(!proxyToken||!automationToken)throw Error('Gateway credentials are required');
+ publicOrigin=normalizeOrigin(publicOrigin);
  const auth=await createAuthServer({dir,origin:publicOrigin,proxyToken,bootstrap,trustedOrigins:true});
  await new Promise(r=>auth.listen(0,'127.0.0.1',r));
  const authBase='http://127.0.0.1:'+auth.address().port;
@@ -62,6 +71,10 @@ export async function createGateway({dir,proxyToken,automationToken,upstream,pub
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  const secrets=process.env.AUTH_SECRETS_DIR||'/secrets',dir=process.env.AUTH_DATA_DIR||'/data';
- const gateway=await createGateway({dir,proxyToken:fs.readFileSync(path.join(secrets,'proxy.token'),'utf8').trim(),automationToken:fs.readFileSync(path.join(secrets,'automation.token'),'utf8').trim(),upstream:process.env.APP_UPSTREAM||'http://web:8080'});
+ // 公开 Origin（HTTPS 反代部署时设置）与首次启动的初始账号：两者都不设时行为与之前完全一致。
+ const publicOrigin=process.env.AUTH_ORIGIN||undefined;
+ const u=process.env.AUTH_BOOTSTRAP_USER,p=process.env.AUTH_BOOTSTRAP_PASSWORD;
+ const bootstrap=u&&p?{username:u,password:p}:undefined;
+ const gateway=await createGateway({dir,proxyToken:fs.readFileSync(path.join(secrets,'proxy.token'),'utf8').trim(),automationToken:fs.readFileSync(path.join(secrets,'automation.token'),'utf8').trim(),upstream:process.env.APP_UPSTREAM||'http://web:8080',publicOrigin,bootstrap});
  gateway.listen(Number(process.env.PORT||8080),'0.0.0.0',()=>console.log('aigccat unified login gateway ready'));
 }

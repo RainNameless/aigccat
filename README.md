@@ -112,16 +112,34 @@ aigccat 是一条**自托管的 AI 3D 资产管线**：从文字或图片生成�
 
 ## 快速开始
 
+**方式 A · 单容器（推荐，零编译）**
+
 ```bash
-git clone https://github.com/RainNameless/aigccat.git
-cd aigccat
-cp .env.example .env          # 填入 MINIO_ROOT_PASSWORD 与各服务 Key
-docker compose -p aigccat -f docker-compose.yml up -d
+docker run -d --name aigccat -p 8080:8080 -v aigccat-data:/data \
+  ghcr.io/rainnameless/aigccat:latest
 ```
 
-打开 `http://localhost:8080`。
+打开 `http://localhost:8080`。初始账号密码只在首次启动时打印一次：
 
-完整步骤、可选工作器、公网部署、常见问题见 **[部署指南](docs/DEPLOYMENT.md)**。
+```bash
+docker logs aigccat | grep -A2 初始账号
+```
+
+一个容器里装齐存储（MinIO）、后端、鉴权网关与 AI 绑骨执行器，**不需要本地编译，也不需要先配 .env**——
+密钥与初始账号在首次启动时自动生成并保存在数据卷里。所有状态都在 `aigccat-data` 这一个卷，
+备份/迁移就是拷它。
+
+> Apple Silicon 与 x86 服务器都有对应架构的镜像。想固定版本就把 `:latest` 换成 `:sha-xxxxxxx`。
+
+**方式 B · 多容器（开发用，或多用户 / 公网部署）**
+
+```bash
+git clone https://github.com/RainNameless/aigccat.git && cd aigccat
+cp .env.example .env          # 填入 MINIO_ROOT_PASSWORD 与各服务 Key
+docker compose -p aigccat -f docker-compose.yml up -d --build
+```
+
+完整步骤、宿主工作器、公网部署、常见问题见 **[部署指南](docs/DEPLOYMENT.md)**。
 
 ## 未接入 / 未验收（如实标注）
 

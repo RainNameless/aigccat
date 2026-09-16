@@ -112,16 +112,34 @@ browser ──► gateway :8080   (the only exposed port; unified auth)
 
 ## Quick start
 
+**Option A · single container (recommended, no build required)**
+
 ```bash
-git clone https://github.com/RainNameless/aigccat.git
-cd aigccat
-cp .env.example .env          # set MINIO_ROOT_PASSWORD and your service keys
-docker compose -p aigccat -f docker-compose.yml up -d
+docker run -d --name aigccat -p 8080:8080 -v aigccat-data:/data \
+  ghcr.io/rainnameless/aigccat:latest
 ```
 
-Open `http://localhost:8080`.
+Open `http://localhost:8080`. The initial admin password is printed once on first start:
 
-For optional workers, public deployment and troubleshooting, see the **[Deployment Guide](docs/DEPLOYMENT.md)**.
+```bash
+docker logs aigccat | grep -A2 "initial account"
+```
+
+One container holds storage (MinIO), the backend, the auth gateway and the AI rigging executor.
+**No local compile, no .env needed** — secrets and the admin account are generated on first start and
+kept in the data volume. All state lives in `aigccat-data`, so backup and migration are a single volume copy.
+
+> Both Apple Silicon and x86 images are published. Pin a version by replacing `:latest` with `:sha-xxxxxxx`.
+
+**Option B · multi-container (development, or multi-user / public deployment)**
+
+```bash
+git clone https://github.com/RainNameless/aigccat.git && cd aigccat
+cp .env.example .env          # set MINIO_ROOT_PASSWORD and your service keys
+docker compose -p aigccat -f docker-compose.yml up -d --build
+```
+
+For host workers, public deployment and troubleshooting, see the **[Deployment Guide](docs/DEPLOYMENT.md)**.
 
 ## Not implemented / not verified (stated honestly)
 
