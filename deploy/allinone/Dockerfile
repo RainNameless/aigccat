@@ -9,6 +9,10 @@
 # 基础镜像选 debian bookworm 是必须的：web 的 Rust 二进制编译自 rust:1-slim-bookworm
 # （glibc 动态链接），换 Alpine(musl) 这个二进制直接跑不起来；opencode 侧原本也基于 bookworm。
 
+# 全局 ARG：必须在第一个 FROM 之前声明，否则 FROM 取不到它的值。
+# 用 quay.io 而不是 Docker Hub —— MinIO 已把 `minio/minio` 从 Docker Hub 下架（实测该仓库 404）。
+ARG MINIO_IMAGE=quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+
 # ───────────────────────── 阶段 1：编译 Rust 后端 ─────────────────────────
 FROM rust:1-slim-bookworm AS webbuilder
 
@@ -37,8 +41,13 @@ COPY web/assets ./assets
 RUN touch src/main.rs && cargo build --release
 
 # ───────────────────────── 阶段 2：取 MinIO 二进制 ─────────────────────────
-# 直接搬官方镜像里的静态二进制（101MB），避免用户构建时还要去 dl.min.io 下载
-FROM minio/minio:latest AS minio
+# 直接搬官方镜像里的静态二进制（105MB），避免用户构建时还要另外下载。
+#
+# ⚠ 必须用 quay.io 而不是 Docker Hub：MinIO 已把 `minio/minio` 从 Docker Hub 下架
+# （2026-09 实测 hub.docker.com 上该仓库返回 404，而 library/nginx 正常），
+# 在 CI 上会直接报 `pull access denied ... insufficient_scope`。quay.io 是官方发布源，匿名可拉。
+# 版本号固定是为了可复现，要升级改文件顶部的 MINIO_IMAGE。
+FROM ${MINIO_IMAGE} AS minio
 
 # ───────────────────────── 阶段 3：运行时 ─────────────────────────
 FROM node:22-bookworm-slim
