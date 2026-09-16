@@ -4,7 +4,7 @@ A general-purpose 3D game asset platform — describe what you want in natural l
 
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 
-[中文](README.md) · [Deployment Guide](docs/DEPLOYMENT.md) · [Docs Index](docs/README.md)
+[Telegram Community](https://t.me/aigccat) · [中文](README.md) · [Deployment Guide](docs/DEPLOYMENT.md) · [Docs Index](docs/README.md)
 
 ---
 
