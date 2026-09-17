@@ -41,17 +41,20 @@ docker compose -p aigccat -f docker-compose.yml up -d # 多容器部署用这一
 | 动作 | 说明 |
 |---|---|
 | 1. 打开工作台 | 顶栏右侧状态显示 **「网页订阅 · 未连接」**；「模型构建」面板里也会出现 **连接网页订阅 · 点击登录** |
-| 2. 点它 → 点【打开登录窗口】 | 一个真实浏览器窗口会弹出 |
+| 2. 点它 → 点【打开登录窗口】 | 一个真实浏览器窗口会弹出，**之后就完全交给你操作** |
 | 3. 在那个窗口里登录 | 用你自己的订阅账号，含邮箱验证码等步骤都在这边完成 |
 | 4. 回到网页点【我已登录，取走凭据】 | 状态变成 **「网页订阅 · 已连接」**，弹窗里会显示剩余积分 |
 
 ![连接网页订阅](screenshots/studio-connect.png)
 
+**这条链路刻意不轮询上游**：窗口打开后，我们不替你去试、也不反复请求站点 ——
+那只会让 Cloudflare 的人机校验更容易盯上你。只有你点【我已登录】时，我们才去取一次凭据。
+
 三点要说清楚，避免误会：
 
 - 窗口出现在**运行执行器的那台机器**上。如果你是从别的设备访问界面，请到那台机器上完成登录。
 - 取的是**这个窗口**里的登录凭据，不是你日常浏览器的登录态 —— 读你日常浏览器的 cookie 需要动系统钥匙串里的加密密钥，既不可靠也不该那么做。
-- 登录窗口最多开 10 分钟，超时自动关闭；随时可以点【取消并关闭窗口】。取到凭据后窗口也会自动关掉。
+- 窗口最多开 30 分钟，超时自动关闭；随时可以点【取消并关闭窗口】。取到凭据后窗口也会自动关掉。
 
 **方式二 · 命令行**
 
@@ -128,6 +131,8 @@ node scripts/studio-runner/connect-session.cjs --timeout 600
 | 报「登录会话刷新连接失败」 | 网络不通 / 代理没生效 | 按上面那条命令先确认代理能不能出网；**代理端口在听不代表它通** |
 | 界面显示「未连接 · 连不上上游（网络或代理不通）」 | 同上：上游真的连不上 | 同上。代理恢复后状态会自己变回「已连接」（界面每 30 秒会复查一次） |
 | 生成中途失败 | 上游任务失败或超过 30 分钟 | 在任务记录里查原任务；**系统不会自动重发付费请求** |
+| 窗口里一直显示 “Just a moment...” 或页面反复刷新 | Cloudflare 人机校验没过（出口 IP 被盯上，或中途换过代理节点） | 等十几秒让它自己走完；**反复挑战就换一个代理节点** —— `cf_clearance` 绑定出口 IP，节点一跳就作废 |
+| 点「用 Google 登录」怎么都登不上 | 站点用的是 Google Identity Services（FedCM），在代理 / 自动化浏览器里常报 `NetworkError` | 改用**它自己的邮箱 / 密码或验证码**登录。第三方登录在自动化浏览器里成功率低，这不是本项目的 bug |
 | 登录页要求验证码 | 正常的风控 | 在打开的浏览器里手动完成，工具会等你 |
 
 ## 6. 边界与风险（请看完再用）
@@ -209,7 +214,7 @@ Three things worth knowing:
 - It captures the cookies of **that window only**, not your everyday browser's login. Reading your
   everyday browser's cookies would require unlocking the OS keychain — unreliable and not something
   we should do.
-- The login window closes itself after 10 minutes (or when you click Cancel), and it closes
+- The login window closes itself after 30 minutes (or when you click Cancel), and it closes
   automatically once the credential is saved.
 
 **Option B · from the command line**
@@ -273,6 +278,14 @@ Upstream endpoints may change at any time. Use only an account you are entitled 
 for yourself whether the usage fits the upstream terms. Never share or commit the session file —
 if it leaks, log in again and the old session dies. If you want the well-trodden route, the
 official developer API is also supported (see [`SPONSORSHIP.md`](SPONSORSHIP.md)).
+
+**Two environment caveats we hit in practice.** The site sits behind a Cloudflare human check
+("Just a moment..."), and `cf_clearance` is bound to your exit IP — if your proxy rotates nodes the
+challenge restarts, so pin one node while logging in. And its "Sign in with Google" uses Google
+Identity Services (FedCM), which commonly fails with `NetworkError` in a proxied or automated
+browser; prefer the site's own email/password or email-code login. Neither is a bug in this project,
+and this link never polls the upstream while you are logging in — it only fetches the credential
+once, when you click **I've logged in**.
 
 **Not on macOS?** The worker is plain Node:
 
