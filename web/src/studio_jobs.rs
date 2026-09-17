@@ -25,6 +25,19 @@ pub async fn health()->Json<Value>{
  let result=async{Worker::new()?.call("/health",None).await}.await;
  Json(match result{Ok(v)=>v,Err(e)=>json!({"ready":false,"error":e})})
 }
+// 会话接入的界面入口：转发给宿主执行器。执行器负责开浏览器、抓 cookie、落盘。
+pub async fn session_state()->Json<Value>{
+ let result=async{Worker::new()?.call("/session",None).await}.await;
+ Json(match result{Ok(v)=>v,Err(e)=>json!({"state":"unavailable","error":e})})
+}
+pub async fn session_action(Json(body):Json<Value>)->ResultApi{
+ let path=match body["action"].as_str().unwrap_or(""){
+  "start"=>"/session/start","finish"=>"/session/finish","cancel"=>"/session/cancel",
+  _=>return Err(error("未知操作")),
+ };
+ let worker=Worker::new().map_err(|e| error(e))?;
+ match worker.call(path,Some(json!({}))).await{Ok(v)=>Ok((StatusCode::OK,Json(v))),Err(e)=>Err(error(e))}
+}
 pub fn validate(req:&Generate)->Result<(),String>{
  if req.source!="studio"{return Err("不是 Studio 任务".into());}
  let model=req.model_id.as_deref().unwrap_or("v3.0-20250812");

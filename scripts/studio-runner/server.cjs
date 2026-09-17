@@ -1,4 +1,5 @@
-// Studio subscription transport. No browser process is launched by this service.
+// Studio subscription transport. 平时不带任何浏览器进程；只有在接入/重新连接会话时
+// 才按需拉起一个有界面的浏览器窗口（见 /session/* 路由与 session.cjs）。
 const http=require('node:http');
 const fs=require('node:fs/promises');
 const path=require('node:path');
@@ -8,6 +9,7 @@ const {normalize}=require('./normalize.cjs');
 const {preview}=require('./preview.cjs');
 const {exportGenerated}=require('./export-generated.cjs');
 const {processModel,validateProcess}=require('./process.cjs');
+const {startLogin,finishLogin,cancelLogin,loginState}=require('./session.cjs');
 const DIR=path.join(ROOT,'.ai/browser-state/studio-jobs');
 const SECRET=path.join(ROOT,'.ai/browser-state/studio-runner-token');
 const valid=s=>/^[a-zA-Z0-9_-]{1,200}$/.test(s);
@@ -74,6 +76,18 @@ async function main(){
    const parts=new URL(req.url,'http://localhost').pathname.split('/').filter(Boolean);
    if(req.method==='GET'&&parts[0]==='health'){
     let c;try{c=await client();const a=await c.call('/v2/studio/user/profile/payment');send(200,{ready:true,mode:'session-http',credits:a.wallet?.total_credit,active});}finally{await c?.close();}return;
+   }
+   // 会话接入：让界面能「点一下打开登录窗口 → 用户登录 → 点我已登录 → 抓 cookie」。
+   // 只有按需时才拉起浏览器；平时这个服务不带任何浏览器进程。
+   if(parts[0]==='session'){
+    if(req.method==='GET'&&parts.length===1)return send(200,loginState());
+    if(req.method!=='POST')return send(405,{error:'method'});
+    try{
+     if(parts[1]==='start')return send(200,await startLogin());
+     if(parts[1]==='finish')return send(200,{ok:true,...(await finishLogin())});
+     if(parts[1]==='cancel')return send(200,await cancelLogin());
+     return send(404,{error:'not found'});
+    }catch(e){return send(e.code===409?409:400,{error:String(e.message).replace(/https?:\/\/\S+/g,'[链接]').slice(0,300)});}
    }
    const id=parts[1];if(parts[0]!=='jobs'||!valid(id))return send(404,{error:'not found'});
    if(req.method==='GET'){

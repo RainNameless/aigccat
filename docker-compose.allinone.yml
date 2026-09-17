@@ -31,6 +31,11 @@ services:
     build:
       context: .
       dockerfile: deploy/allinone/Dockerfile
+      args:
+        # 从源码构建时，若 deb.debian.org 抽风（国内常见）可指定镜像源：
+        #   APT_MIRROR=mirrors.ustc.edu.cn docker compose -f docker-compose.allinone.yml build
+        # 留空则用官方源，对 CI / 海外用户无影响。
+        APT_MIRROR: ${APT_MIRROR:-}
     ports:
       - "8080:8080"
     volumes:

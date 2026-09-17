@@ -14,7 +14,7 @@
 import json,os,plistlib,re,secrets,shutil,subprocess,sys,time,urllib.request
 from pathlib import Path
 
-FILES=('export-generated.cjs','client.cjs','proxy.cjs','process.cjs','server.cjs','normalize.cjs','preview.cjs','package.json','package-lock.json')
+FILES=('export-generated.cjs','client.cjs','proxy.cjs','session.cjs','process.cjs','server.cjs','normalize.cjs','preview.cjs','package.json','package-lock.json')
 root=Path(__file__).resolve().parents[2]
 source=root/'scripts/studio-runner'
 runtime=Path.home()/'Library/Application Support/aigccat/studio-worker'
@@ -28,13 +28,14 @@ if not (source/'node_modules').is_dir():
 
 private_src=root/'.ai/browser-state'
 private_src.mkdir(parents=True,exist_ok=True)
+# 会话可以晚于安装：装好之后在界面里点「连接网页订阅」，或跑 connect-session.cjs 都行。
+# 这里只提醒，不阻断 —— 否则「先装执行器才能用界面连会话」会变成死锁。
 session_src=private_src/'studio-session.auth.json'
-if not session_src.exists():
-    raise SystemExit(
-        '还没有 Studio 登录会话，安装会失败（执行器没有凭据可用）。\n'
-        '先连接你自己的订阅账号（会打开浏览器，登录一次即可）：\n'
-        '  node scripts/studio-runner/connect-session.cjs\n'
-        '凭据只写到本机 .ai/browser-state/ 下，该目录已在 .gitignore 中，不会入库。')
+has_session=session_src.exists()
+if not has_session:
+    print('  还没有登录会话：装好后请二选一')
+    print('    · 界面：工作台 → 服务状态（或模型面板）→ 连接网页订阅 → 打开登录窗口')
+    print('    · 命令行：node scripts/studio-runner/connect-session.cjs')
 
 # 执行器令牌：缺失就生成。后端用 STUDIO_WORKER_TOKEN 调它，两边必须一致。
 token_src=private_src/'studio-runner-token'
@@ -68,7 +69,7 @@ for name in FILES:
     shutil.copy2(source/name,runtime/name)
 shutil.copytree(source/'node_modules',runtime/'node_modules',dirs_exist_ok=True)
 private=runtime/'.ai/browser-state';private.mkdir(parents=True,exist_ok=True);private.chmod(0o700)
-for name in ('studio-session.auth.json','studio-runner-token'):
+for name in (['studio-session.auth.json'] if has_session else [])+['studio-runner-token']:
     shutil.copy2(private_src/name,private/name);(private/name).chmod(0o600)
 
 # ── 3. 选一个确定的 node：优先显式指定，其次 node@22（本项目长期验证的运行时），
@@ -88,13 +89,16 @@ print(f'  使用 node：{node}')
 
 # ── 4. 正在跑任务时不要重启：已消耗的积分不会退回 ──
 label='cn.aigccat.studio-worker';domain=f'gui/{os.getuid()}'
-def health():
-    req=urllib.request.Request('http://127.0.0.1:8790/health',headers={'Authorization':'Bearer '+token_value})
+def probe(path):
+    req=urllib.request.Request('http://127.0.0.1:8790'+path,headers={'Authorization':'Bearer '+token_value})
     with urllib.request.urlopen(req,timeout=5) as response:
         return json.load(response)
+# /health 依赖登录会话，没有会话时会返回 400；就绪判定必须用不依赖会话的 /session
+def ready():
+    return probe('/session')
 active=None
 try:
-    active=health().get('active')
+    active=probe('/health').get('active')
 except Exception:
     pass
 if active and '--force' not in sys.argv:
@@ -115,7 +119,7 @@ subprocess.run(['launchctl','kickstart','-k',f'{domain}/{label}'] if loaded else
 # ── 5. 等它就绪，并把结果讲清楚 ──
 for attempt in range(20):
     try:
-        if health():
+        if ready():
             break
     except Exception:
         if attempt==19:
@@ -127,6 +131,7 @@ print('')
 print('  执行器已就绪：http://127.0.0.1:8790')
 print(f'  运行副本：{runtime}')
 print(f'  私有目录（登录态与令牌，权限 600）：{private}')
+print('  登录会话：'+('已接入' if has_session else '未接入 —— 到界面里点「连接网页订阅」，或跑 connect-session.cjs'))
 if generated_token:
     print('')
     print(f'  已生成执行器令牌：{token_src}')

@@ -143,8 +143,96 @@ function renderServiceStatus(){
   $('service-status').textContent=studio?(ready?'网页订阅 · 已连接':studioHealth?'网页订阅 · 未连接':'网页订阅 · 检查连接…'):'Tripo API';
   $('service-status').title=studio?(ready?'后台执行器可用；历史失败请在任务记录查看':studioHealth?.error||'正在检查当前连接'):'';
 }
-async function refreshStudioHealth(){try{studioHealth=await api('/api/studio/status');}catch{studioHealth={ready:false,error:'本站服务暂不可达'};}renderServiceStatus();}
+async function refreshStudioHealth(){
+  const before=studioHealth?.ready;
+  try{studioHealth=await api('/api/studio/status');}catch{studioHealth={ready:false,error:'本站服务暂不可达'};}
+  renderServiceStatus();
+  // 执行器掉线/恢复时，模型面板里的入口要跟着出现或消失（面板本身不会自动重建）
+  if(before!==studioHealth?.ready)syncConnectEntry();
+}
+// 只在模型面板已渲染时插入/移除「连接网页订阅」按钮，不重建整个面板（避免打断正在输入的内容）
+function syncConnectEntry(){
+  const host=$('parameters');if(!host)return;
+  const existing=host.querySelector('#connect-session');
+  if(!host.querySelector('#prepare-multiview')){existing?.remove();return;}
+  const need=form.modelSource==='studio'&&studioHealth&&!studioHealth.ready;
+  if(need&&!existing){
+    const button=document.createElement('button');
+    button.id='connect-session';button.className='full';button.textContent='连接网页订阅 · 点击登录';
+    button.addEventListener('click',safe(()=>openConnectDialog()));
+    host.querySelector('#prepare-multiview')?.before(button);
+  }else if(!need&&existing){existing.remove();}
+}
 setInterval(refreshStudioHealth,30000);
+/* ---------- 连接网页订阅会话（界面方式，等价于 scripts/studio-runner/connect-session.cjs）----------
+   执行器负责开浏览器、抓 cookie、落盘；这里只做状态展示与触发。 */
+const connectFlow = { timer: null, state: null };
+function connectNotice() {
+  const s = connectFlow.state;
+  if (!s) return "正在读取状态…";
+  if (s.state === "unavailable") return `执行器不可达 · ${s.error || "未知原因"}`;
+  if (s.state === "waiting") return s.detected ? "已检测到登录，请点「我已登录」" : "等待你在浏览器里登录…";
+  return studioHealth?.ready ? "已连接" : "未连接";
+}
+function dialogConnect() {
+  const s = connectFlow.state || {};
+  const waiting = s.state === "waiting";
+  const credits = studioHealth?.credits != null ? ` · 剩余积分 ${studioHealth.credits}` : "";
+  let body =
+    '<p class="help-line">这条链路用的是<strong>你自己账号</strong>的网页订阅积分，不是开发者 API 额度。凭据只写进运行执行器那台机器的 <code>.ai/browser-state/</code>，不上传、不入库。</p>' +
+    `<p class="help-line">当前状态：<strong>${connectNotice()}</strong>${credits}${s.notice ? ` · ${esc(s.notice)}` : ""}</p>`;
+  if (waiting) {
+    body +=
+      `<p class="help-line">登录窗口已打开${s.waited_seconds ? `（已等待 ${s.waited_seconds} 秒）` : ""}。它出现在<strong>运行执行器的这台机器</strong>上 —— 如果你是从别的设备连过来的，请到那台机器上完成登录。</p>` +
+      '<button id="connect-finish" class="full">我已登录，取走凭据</button>' +
+      '<button id="connect-cancel" class="full">取消并关闭窗口</button>';
+  } else {
+    if (!studioHealth?.ready) {
+      body +=
+        '<ol class="help-line" style="padding-left:18px;margin:6px 0">' +
+        "<li>点下面的按钮，浏览器会在运行执行器的机器上弹出。</li>" +
+        "<li>在那个窗口里登录你自己的订阅账号（含邮箱验证码等步骤）。</li>" +
+        "<li>登录完回到这里点「我已登录」，我们就取走这次登录的凭据。</li></ol>";
+    }
+    body += `<button id="connect-start" class="full">${studioHealth?.ready ? "重新连接（换账号或会话过期时用）" : "打开登录窗口"}</button>`;
+  }
+  modal("连接网页订阅", body);
+  $("connect-start")?.addEventListener("click", safe(() => connectAction("start")));
+  $("connect-finish")?.addEventListener("click", safe(() => connectAction("finish")));
+  $("connect-cancel")?.addEventListener("click", safe(() => connectAction("cancel")));
+}
+async function pollConnect() {
+  try { connectFlow.state = await api("/api/studio/session"); }
+  catch (e) { connectFlow.state = { state: "unavailable", error: String(e.message || e).slice(0, 200) }; }
+  dialogConnect();
+}
+async function openConnectDialog() {
+  connectFlow.state = null;
+  modal("连接网页订阅", '<p class="help-line">正在读取状态…</p>');
+  await pollConnect();
+  if (!connectFlow.timer) connectFlow.timer = setInterval(() => pollConnect().catch(() => {}), 2000);
+}
+async function connectAction(action) {
+  const buttons = ["connect-start", "connect-finish", "connect-cancel"].map(id => $(id)).filter(Boolean);
+  buttons.forEach(b => (b.disabled = true));
+  try {
+    const result = await api("/api/studio/session", { method: "POST", body: JSON.stringify({ action }) });
+    if (action === "finish") {
+      await refreshStudioHealth();
+      toast(`已连接网页订阅 · 剩余积分 ${result.credits ?? "未知"}`);
+      $("dialog").close();
+      return;
+    }
+    connectFlow.state = result;
+    dialogConnect();
+  } catch (e) {
+    toast(String(e.message || e).slice(0, 160));
+    buttons.forEach(b => (b.disabled = false));
+  }
+}
+$("dialog").addEventListener("close", () => {
+  if (connectFlow.timer) { clearInterval(connectFlow.timer); connectFlow.timer = null; }
+});
 let versionLabels = {};
 let creationState = null,
   assetMedia = [],
@@ -539,6 +627,7 @@ function renderParameters() {
       field('目标面数',select('tripoFaces',[['','自动（由模型决定）'],...[500,2000,5000,10000,20000,50000,100000,500000,1000000,1500000,2000000].filter(n=>n<=maxFaces).map(n=>[String(n),n.toLocaleString()])])) +
       (studio ? (form.studioModel==='v3.1-20260211'?field('几何精度',select('geometryQuality',[['','标准'],['detailed','高精度 · 更多细节']])):'') + toggle('modelQuad','四边面拓扑') : '') +
       toggle('tripoTexture','生成纹理') + (form.tripoTexture ? toggle('tripoPbr','PBR 材质') + (studio ? field('贴图质量',select('textureQuality',[['standard','标准'],['extreme','极高 · 细节优先']])) + field('导出贴图尺寸',choices('textureSize',[['2048','2K'],['4096','4K'],['8192','8K']])) + '<p class="help-line">尺寸为导出目标；实际细节取决于生成结果。高精度与高质量贴图会增加积分和等待时间。</p>' : '') : '') +
+      (studio && studioHealth && !studioHealth.ready ? '<button id="connect-session" class="full">连接网页订阅 · 点击登录</button>' : '') +
       `<a class="help-line" href="/settings.html">${studio?"模型设置":"模型配置 · 地址与 Key"}</a><p class="help-line">${form.mode==='batch'?'每张图片生成一个独立资产，依次执行，失败后停止。':(studio?'使用网页订阅积分，后台自动生成、下载并保存到当前资产。':'直接调用 Tripo，完成后保存模型和新版本。')}${version?'重新生成会保留现有版本。':''}</p>` +
       (version ? '<button id="review-model">查看模型四视图</button>' : '');
     action = version ? '重新生成模型' : '生成模型';
@@ -774,6 +863,8 @@ function renderParameters() {
   }));
   $('open-rig-agent')?.addEventListener('click',safe(showRigAgent));
   $('studio-human-rig')?.addEventListener('click',safe(()=>exclusive(()=>studioProcess('rig'))));
+  $('connect-session')?.addEventListener('click',safe(()=>openConnectDialog()));
+  $('service-status')?.addEventListener('click',safe(()=>openConnectDialog()));
   $('prepare-multiview')?.addEventListener('click',()=>{if(!uploads.input&&uploads.front)uploads.input={...uploads.front};selectTool('image');});
   $('load-multiview')?.addEventListener('click',safe(()=>chooseReferenceGroup()));
   $('open-presets')?.addEventListener('click', presetDialog);

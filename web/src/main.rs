@@ -120,6 +120,7 @@ async fn main() {
         .route("/api/local-rig-agent/provider", post(rig_agent::provider).layer(axum::extract::DefaultBodyLimit::max(12 * 1024 * 1024)))
         .route("/api/local-rig-agent/{*path}", axum::routing::any(rig_agent::proxy))
         .route("/api/studio/status", get(studio_jobs::health))
+        .route("/api/studio/session", get(studio_jobs::session_state).post(studio_jobs::session_action))
         .route("/api/assets/{dir}/{id}/versions/{ver}/studio-process", post(studio_jobs::process))
         .route("/api/assets", post(create_asset).get(list_assets))
         .route("/api/workbench/state", get(workbench::get_state).put(workbench::put_state))

@@ -21,24 +21,43 @@
 | 账号 | **你自己的**、有可用额度的订阅账号 |
 | 网络 | 能访问 `studio.tripo3d.ai` / `api.tripo3d.ai`；不能直连就先准备好本地代理 |
 
-## 2. 四步接入
+## 2. 接入
+
+### 第 1 步（一次性）：把执行器装起来
+
+这一步**不需要登录**，装完界面里才会出现连接入口。
 
 ```bash
-# 1) 安装依赖（只需一次）
-cd scripts/studio-runner && npm install && cd ../..
-
-# 2) 连接会话 —— 会打开一个真实浏览器，请在里面登录你的账号
-node scripts/studio-runner/connect-session.cjs
-
-# 3) 装成常驻执行器（会把令牌写进 .env）
-python3 scripts/studio-runner/install.py
-
-# 4) 让容器重新读取环境变量
-docker compose -f docker-compose.allinone.yml up -d      # 单容器
-docker compose -p aigccat -f docker-compose.yml up -d     # 多容器
+cd scripts/studio-runner && npm install && cd ../..   # 依赖（只需一次）
+python3 scripts/studio-runner/install.py              # 装成常驻执行器；令牌会自动写进 .env
+docker compose -f docker-compose.allinone.yml up -d   # 让容器重新读取环境变量（单容器）
+docker compose -p aigccat -f docker-compose.yml up -d # 多容器部署用这一行
 ```
 
-做完打开工作台的「模型构建」，服务状态应显示 **「网页订阅 · 已连接」**。
+### 第 2 步：连接你的账号（二选一）
+
+**方式一 · 界面里点（推荐）**
+
+| 动作 | 说明 |
+|---|---|
+| 1. 打开工作台 | 顶栏右侧状态显示 **「网页订阅 · 未连接」**；「模型构建」面板里也会出现 **连接网页订阅 · 点击登录** |
+| 2. 点它 → 点【打开登录窗口】 | 一个真实浏览器窗口会弹出 |
+| 3. 在那个窗口里登录 | 用你自己的订阅账号，含邮箱验证码等步骤都在这边完成 |
+| 4. 回到网页点【我已登录，取走凭据】 | 状态变成 **「网页订阅 · 已连接」**，弹窗里会显示剩余积分 |
+
+三点要说清楚，避免误会：
+
+- 窗口出现在**运行执行器的那台机器**上。如果你是从别的设备访问界面，请到那台机器上完成登录。
+- 取的是**这个窗口**里的登录凭据，不是你日常浏览器的登录态 —— 读你日常浏览器的 cookie 需要动系统钥匙串里的加密密钥，既不可靠也不该那么做。
+- 登录窗口最多开 10 分钟，超时自动关闭；随时可以点【取消并关闭窗口】。取到凭据后窗口也会自动关掉。
+
+**方式二 · 命令行**
+
+```bash
+node scripts/studio-runner/connect-session.cjs      # 打开浏览器登录并保存
+```
+
+做完后界面上的服务状态同样会变成「网页订阅 · 已连接」。
 
 ### 连接工具的其他用法
 
@@ -85,9 +104,13 @@ node scripts/studio-runner/connect-session.cjs --timeout 600
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| 界面显示「网页订阅 · 未连接」 | 执行器没起或令牌对不上 | `launchctl print gui/$(id -u)/cn.aigccat.studio-worker`；日志在 `~/Library/Application Support/aigccat/studio-worker/.ai/browser-state/error.log` |
-| 提示「Studio 执行器未配置」 | 容器没读到 `STUDIO_WORKER_TOKEN` | 按第 2 步第 4 条重建容器（改 `.env` 后必须重建，不是 restart） |
-| `--verify` 报「登录已失效」 | 会话确实过期，**或**上游瞬时抖动 | 等十几秒重试；持续失效再重新登录（第 2 步第 2 条） |
+| 界面显示「网页订阅 · 未连接」 | 执行器没起，或令牌对不上，或还没接会话 | 先按第 2 步接一次会话；再查 `launchctl print gui/$(id -u)/cn.aigccat.studio-worker`，日志在 `~/Library/Application Support/aigccat/studio-worker/.ai/browser-state/error.log` |
+| 提示「Studio 执行器未配置」 | 容器没读到 `STUDIO_WORKER_TOKEN` | 按第 1 步重建容器（改 `.env` 后必须重建，不是 restart） |
+| 弹窗里显示「执行器不可达」 | 后端连不上宿主执行器 | 执行器没起，或 `STUDIO_WORKER_URL` 不对（容器里默认 `host.docker.internal:8790`） |
+| 点【打开登录窗口】后没有窗口弹出 | 运行执行器的那台机器没装 Chrome | 装 Google Chrome，或在那台机器执行 `npx playwright install chromium`（会自动改用自带的 Chromium） |
+| 点【我已登录】提示「还没有检测到登录」 | 那个窗口里还没登录成功 | 回去把登录走完（有时要过邮箱验证码），再点一次【我已登录】 |
+| 弹窗自己关了，提示「等待登录超时」 | 超过 10 分钟没完成 | 重新打开登录窗口 |
+| `--verify` 报「登录已失效」 | 会话确实过期，**或**上游瞬时抖动 | 等十几秒重试；持续失效再重新登录（第 2 步） |
 | 报「登录会话刷新连接失败」 | 网络不通 / 代理没生效 | 设置 `STUDIO_PROXY` 后重试 |
 | 生成中途失败 | 上游任务失败或超过 30 分钟 | 在任务记录里查原任务；**系统不会自动重发付费请求** |
 | 登录页要求验证码 | 正常的风控 | 在打开的浏览器里手动完成，工具会等你 |
@@ -142,16 +165,43 @@ web subscription**, not from the developer API quota.
 | Account | **Your own** subscription account with available credits |
 | Network | Reachable `studio.tripo3d.ai` / `api.tripo3d.ai`; set up a local proxy first if not |
 
-## Four steps
+## Step 1 (once): install the worker
+
+No login needed here — this is what makes the connect entry appear in the UI.
 
 ```bash
-cd scripts/studio-runner && npm install && cd ../..          # 1) dependencies, once
-node scripts/studio-runner/connect-session.cjs               # 2) log in in the opened browser
-python3 scripts/studio-runner/install.py                     # 3) install the resident worker
-docker compose -f docker-compose.allinone.yml up -d           # 4) let the container pick up the token
+cd scripts/studio-runner && npm install && cd ../..   # dependencies, once
+python3 scripts/studio-runner/install.py              # install the resident worker (writes the token into .env)
+docker compose -f docker-compose.allinone.yml up -d   # let the container pick up the token (single container)
+docker compose -p aigccat -f docker-compose.yml up -d # multi-container deployments use this line
 ```
 
-Then open the workbench → "Model build"; the status should read **Web subscription · Connected**.
+## Step 2: connect your account (either way)
+
+**Option A · from the UI (recommended)**
+
+1. Open the workbench. The status in the header reads **"Web subscription · Not connected"**, and the
+   Model build panel shows a **Connect web subscription** button.
+2. Click it, then click **Open login window** — a real browser window opens.
+3. Log in there with your own subscription account (email codes and the rest happen in that window).
+4. Come back and click **「我已登录，取走凭据」** (I've logged in). The status turns into
+   **"Web subscription · Connected"** and the remaining credits are shown.
+
+Three things worth knowing:
+
+- The window opens **on the machine running the worker**. If you are reaching the UI from another
+  device, walk over to that machine to log in.
+- It captures the cookies of **that window only**, not your everyday browser's login. Reading your
+  everyday browser's cookies would require unlocking the OS keychain — unreliable and not something
+  we should do.
+- The login window closes itself after 10 minutes (or when you click Cancel), and it closes
+  automatically once the credential is saved.
+
+**Option B · from the command line**
+
+```bash
+node scripts/studio-runner/connect-session.cjs      # opens a browser, logs in, saves the session
+```
 
 Extra options:
 
