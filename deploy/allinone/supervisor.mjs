@@ -108,6 +108,35 @@ const children = [
     ready: {url: 'http://127.0.0.1:9000/minio/health/live', label: '存储就绪'},
   },
   {
+    // 容器内自带的 Blender 5.2 工作器：减面 / 体素重拓扑 / 部件编辑 / 自动绑骨。
+    // 与宿主机上跑的是同一份 worker_server.py —— 它用 BLENDER_BIN 定位 Blender，
+    // 所以这里只是把路径指到镜像里的 /opt/blender。
+    // 设为非 critical：起不来也不该让整个容器退出，界面会显示"不可达"。
+    name: 'blender', critical: false,
+    cmd: '/usr/bin/python3',
+    args: ['/srv/blender/worker_server.py', '8788'],
+    cwd: '/srv/blender',
+    env: {
+      ...process.env,
+      BLENDER_BIN: process.env.BLENDER_BIN || '/opt/blender/blender',
+      // 容器里没有 GPU，EEVEE 起不来（EGL 报错），缩略图改用 Cycles CPU
+      AIGCCAT_RENDER_ENGINE: process.env.AIGCCAT_RENDER_ENGINE || 'CYCLES',
+    },
+    ready: {url: 'http://127.0.0.1:8788/healthz', label: 'Blender 就绪'},
+  },
+  {
+    // AI 写 Blender 脚本的执行桥（原来在宿主 8791）。同一份 host.py。
+    name: 'rig-bridge', critical: false,
+    cmd: '/usr/bin/python3',
+    args: ['/app/host.py'],
+    cwd: '/app',
+    env: {
+      ...process.env,
+      BLENDER_BIN: process.env.BLENDER_BIN || '/opt/blender/blender',
+    },
+    ready: {url: 'http://127.0.0.1:8791/health', label: '绑骨桥就绪'},
+  },
+  {
     name: 'web', critical: true,
     cmd: '/srv/aigccat-web',
     // 必须从 /srv 启动：main.rs 里是 ServeDir::new("static")（相对路径），
@@ -124,7 +153,9 @@ const children = [
       RIG_AGENT_URL: 'http://127.0.0.1:4097',
       RIG_AGENT_TOKEN: RIG_TOKEN,
       SERVICES_PUBLIC_ORIGIN: process.env.AUTH_ORIGIN || '',
-      BLENDER_WORKER_URL: process.env.BLENDER_WORKER_URL || 'http://host.docker.internal:8788',
+      // 单容器里 Blender 工作器就在同一个容器内（见下面的 children），默认指本机；
+      // 想改用自己的宿主 Blender，设 BLENDER_WORKER_URL 覆盖即可。
+      BLENDER_WORKER_URL: process.env.BLENDER_WORKER_URL || 'http://127.0.0.1:8788',
       STUDIO_WORKER_URL: process.env.STUDIO_WORKER_URL || 'http://host.docker.internal:8790',
     },
     ready: {url: `${WEB}/api/assets`, label: '后端就绪', anyStatus: true},
@@ -153,7 +184,8 @@ const children = [
       AIGCCAT_URL: WEB,
       RIG_AGENT_TOKEN: RIG_TOKEN,
       OPENCODE_SERVER_PASSWORD: RIG_TOKEN,
-      RIG_HOST_URL: process.env.RIG_HOST_URL || 'http://host.docker.internal:8791',
+      // 绑骨桥（host.py）同样在容器内，见下面的 children
+      RIG_HOST_URL: process.env.RIG_HOST_URL || 'http://127.0.0.1:8791',
     },
   },
 ];

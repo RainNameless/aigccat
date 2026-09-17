@@ -49,7 +49,14 @@ def main():
     height = max(dims.z, 0.2)
 
     scene = bpy.context.scene
-    scene.render.engine = "BLENDER_EEVEE"
+    # 引擎可切换：EEVEE 需要 GL 上下文，容器里没有 GPU 时起不来
+    # （实测报 EGL_BAD_MATCH，就算强制软件 GL 也 Aborted）。容器里用 Cycles 纯 CPU 渲染，
+    # 由 AIGCCAT_RENDER_ENGINE 控制（默认仍是 EEVEE，宿主机行为不变）。
+    engine = os.environ.get("AIGCCAT_RENDER_ENGINE", "BLENDER_EEVEE")
+    scene.render.engine = engine
+    if engine == "CYCLES":
+        scene.cycles.device = "CPU"
+        scene.cycles.samples = int(os.environ.get("AIGCCAT_CYCLES_SAMPLES", "16"))
     scene.render.resolution_x = size
     scene.render.resolution_y = size
     scene.render.resolution_percentage = 100

@@ -1,7 +1,11 @@
 # aigccat 单容器版 —— 给「只想快点跑起来」的人
 #
-# 一个容器 = 存储(MinIO) + 后端(web) + 鉴权(gateway) + AI 绑骨(opencode)。
+# 一个容器 = 存储(MinIO) + 后端(web) + 鉴权(gateway) + AI 绑骨(opencode)
+#            + Blender 5.2（减面 / 重拓扑 / 部件编辑 / 自动绑骨）。
 # 首次启动自动生成密钥与初始账号，不用先配 .env。
+#
+# ⚠ 这个镜像按 amd64 构建：Blender 官方只发布 Linux x64，没有 arm64 版（实测 arm64 包 404）。
+#   Apple Silicon 上由 Docker Desktop 的 Rosetta 运行，功能一致。
 #
 # 用法（二选一）：
 #   1) 直接用预构建镜像（推荐，零编译）：
@@ -28,6 +32,8 @@ name: aigccat-allinone
 services:
   aigccat:
     image: ghcr.io/rainnameless/aigccat:latest
+    # Blender 官方只有 linux-x64，所以镜像固定 amd64；Apple Silicon 走 Rosetta
+    platform: linux/amd64
     build:
       context: .
       dockerfile: deploy/allinone/Dockerfile
@@ -57,16 +63,18 @@ services:
       IMAGE_API_KEY: ${IMAGE_API_KEY:-}
       IMAGE_BASE_URL: ${IMAGE_BASE_URL:-}
       IMAGE_MODEL: ${IMAGE_MODEL:-}
-      # 宿主工作器令牌（只用宿主 Blender 工作器时需要）
+      # Studio 网页订阅执行器：它要弹真人浏览器窗口，所以仍然跑在宿主机上
       STUDIO_WORKER_TOKEN: ${STUDIO_WORKER_TOKEN:-}
-      # 宿主工作器地址（默认指向宿主机上的 8788/8790/8791；容器内可留默认）
-      BLENDER_WORKER_URL: ${BLENDER_WORKER_URL:-http://host.docker.internal:8788}
-      STUDIO_WORKER_URL: ${STUDIO_WORKER_URL:-http://host.docker.internal:8790}
-      RIG_HOST_URL: ${RIG_HOST_URL:-http://host.docker.internal:8791}
+      STUDIO_WORKER_URL: ${STUDIO_WORKER_URL:-}
+      # Blender 工作器与绑骨桥默认用**容器内置**那份（留空即走内置 127.0.0.1）。
+      # 只有想改用你自己宿主上的 Blender 时才设这两个（例如 http://host.docker.internal:8788）。
+      BLENDER_WORKER_URL: ${BLENDER_WORKER_URL:-}
+      RIG_HOST_URL: ${RIG_HOST_URL:-}
     extra_hosts:
       # Linux 上访问宿主机需要这行；Docker Desktop（macOS/Windows）自带
       - "host.docker.internal:host-gateway"
-    mem_limit: 3g
+    # Blender 减面/重拓扑比较吃内存，给宽一点
+    mem_limit: 4g
     restart: unless-stopped
 
 volumes:

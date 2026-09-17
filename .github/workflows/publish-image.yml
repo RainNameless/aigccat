@@ -7,8 +7,10 @@ name: publish all-in-one image
 #       ghcr.io/rainnameless/aigccat:sha-<短提交>   —— 固定版本，可复现
 #       ghcr.io/rainnameless/aigccat:<git tag>      —— 打 tag 时
 #
-# amd64 与 arm64 各自在原生 runner 上构建后合并成一个多架构 manifest，
-# 不用 QEMU 模拟（opencode-ai 装的是原生二进制，模拟构建容易失败且极慢）。
+# ⚠ 只构建 linux/amd64。镜像里含 Blender 5.2，而 Blender 官方只发布 Linux x64，
+#   没有 linux-arm64（实测 arm64 包 404，4.5 全系同样只有 x64）。
+#   Apple Silicon 由 Docker Desktop 的 Rosetta 运行这个 amd64 镜像，功能一致
+#   （实测容器内 decimate 45s / remesh 18s / rig 20s）。
 
 on:
   push:
@@ -21,16 +23,7 @@ env:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: linux/amd64
-            runner: ubuntu-latest
-          # 公开仓库可用的 arm64 原生 runner；若你的仓库不可用，删掉这一项即可
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -45,61 +38,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push by digest
-        id: build
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+            type=ref,event=tag
+
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/allinone/Dockerfile
-          platforms: ${{ matrix.platform }}
-          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
-
-      - name: Export digest
-        run: |
-          mkdir -p /tmp/digests
-          touch "/tmp/digests/${DIGEST#sha256:}"
-        env:
-          DIGEST: ${{ steps.build.outputs.digest }}
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: digests-${{ strategy.job-index }}
-          path: /tmp/digests/*
-          retention-days: 1
-
-  merge:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: /tmp/digests
-          pattern: digests-*
-          merge-multiple: true
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create multi-arch manifest
-        working-directory: /tmp/digests
-        run: |
-          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          TAGS="-t ${IMAGE}:latest -t ${IMAGE}:sha-${SHORT_SHA}"
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then TAGS="${TAGS} -t ${IMAGE}:${GITHUB_REF_NAME}"; fi
-          docker buildx imagetools create ${TAGS} \
-            $(printf "${IMAGE}@sha256:%s " *)
-        env:
-          IMAGE: ${{ env.IMAGE }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Show result
         run: docker buildx imagetools inspect ${{ env.IMAGE }}:latest
