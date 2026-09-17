@@ -8,7 +8,8 @@ use std::{fs::{self, OpenOptions}, io::Write, os::unix::fs::{OpenOptionsExt, Per
 
 /// 建模引擎未接入时的说明（model.ready=false 时展示）；不把未接入能力描述为可用。
 pub const MODEL_MESSAGE: &str = concat!(
-    "请在模型配置管理中设置 Tripo API Key。文字、单图和多视图直接调用 Tripo 生成 3D 模型。",
+    "请在模型配置管理中为 Tripo / Meshy / Rodin / Hunyuan3D / Hi3D 任一家填写 API Key。",
+    "当前已接入生成链路的是 Tripo 与 Meshy；其余三家的官方端点已核对（docs/PROVIDERS.md），传输层陆续补齐。",
 );
 static FILE_LOCK: Mutex<()> = Mutex::new(());
 const FILE: &str = "/srv/config/services.json";
@@ -205,13 +206,23 @@ impl Services {
         }.ok_or("Tripo 模型未启用，请检查模型配置")?;
         c.resolve(&m.id).map(|(_,s)|s)
     }
+    /// 解析 model3d 模型并带上供应商 id：生成入口按它路由到对应传输层（tripo/meshy/…）。
+    pub fn model3d_route(&self, id: Option<&str>) -> Result<(String,Service),String> {
+        let c=self.catalog();
+        let m=match id {
+            Some(id) => c.models.iter().find(|m|m.id==id && m.service=="model3d" && m.enabled),
+            None => c.models.iter().find(|m|m.service=="model3d" && m.default && m.enabled),
+        }.ok_or("3D 生成模型未启用，请检查模型配置")?;
+        let provider=m.provider.clone();
+        c.resolve(&m.id).map(|(_,s)|(provider,s))
+    }
     pub(crate) fn plan_service(&self) -> Option<Service> {
         let c=self.catalog.as_ref()?;
         let m=c.models.iter().find(|m|m.service=="vision" && m.default && m.enabled)?;
         c.resolve(&m.id).ok().map(|(_,s)|s)
     }
     fn catalog(&self) -> Catalog {
-        if let Some(c) = &self.catalog { let mut c=c.clone(); c.ensure_tripo(); return c; }
+        if let Some(c) = &self.catalog { let mut c=c.clone(); c.ensure_builtin(); return c; }
         let mut c = Catalog::default();
         let mut services = vec![("text", self.text.clone()), ("image", self.effective_image())];
         if let Some(v) = &self.vision { services.push(("vision", v.clone())); }
@@ -231,20 +242,29 @@ impl Services {
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| DEFAULT_VISION_MODEL.to_string());
         c.models.push(ModelEntry { id:"plan-default".into(),provider,model:vision_model,service:"vision".into(),enabled:true,default:true });
-        c.ensure_tripo();
+        c.ensure_builtin();
         c
     }
 }
 impl Catalog {
-    fn ensure_tripo(&mut self) {
-        if self.models.iter().any(|m|m.service=="model3d") { return; }
-        let mut id="tripo".to_string();
-        while self.providers.iter().any(|p|p.id==id) { id.push('-'); }
-        self.providers.push(Provider{id:id.clone(),name:"Tripo 3D".into(),base_url:crate::tripo::BASE_URL.into(),api_key:std::env::var("TRIPO_API_KEY").unwrap_or_default()});
-        for (i,model) in crate::tripo::MODELS.iter().enumerate() {
-            let mut model_id=format!("{id}-model-{i}");
-            while self.models.iter().any(|m|m.id==model_id) { model_id.push('-'); }
-            self.models.push(ModelEntry{id:model_id,provider:id.clone(),model:(*model).into(),service:"model3d".into(),enabled:true,default:i==0});
+    /// 内置供应商全部登记进目录：后台「模型配置管理」里直接填 Key、启停模型即可。
+    /// 已存在同 id 的接入（典型：后台保存过目录）就跳过——绝不能因为每次 catalog()
+    /// 都调用这里而追加重复条目。Key 初值取环境变量（如 MESHY_API_KEY），后台保存后以目录为准。
+    /// Tripo 保持默认；其余四家登记为「已启用、非默认」，等传输层接入后再切换默认也不迟。
+    fn ensure_builtin(&mut self) {
+        for builtin in crate::providers::BUILTIN {
+            if self.providers.iter().any(|p| p.id == builtin.id) { continue; }
+            let api_key = std::env::var(builtin.key_env).unwrap_or_default();
+            self.providers.push(Provider { id: builtin.id.into(), name: builtin.name.into(), base_url: builtin.base_url.into(), api_key });
+            for (i, model) in builtin.models.iter().enumerate() {
+                let mut model_id = format!("{}-model-{i}", builtin.id);
+                while self.models.iter().any(|m| m.id == model_id) { model_id.push('-'); }
+                self.models.push(ModelEntry {
+                    id: model_id, provider: builtin.id.into(), model: (*model).into(),
+                    service: "model3d".into(), enabled: true,
+                    default: builtin.id == "tripo" && i == 0,
+                });
+            }
         }
     }
     fn public(&self) -> Value {
@@ -282,7 +302,15 @@ pub async fn put_catalog(State(st): State<Arc<AppState>>, headers: HeaderMap, pa
     ids.clear();
     for m in &c.models {
         if m.id.is_empty() || m.id.len()>120 || !ids.insert(m.id.clone()) || m.model.trim().is_empty() || m.model.len()>120 || m.model.chars().any(char::is_control) || !matches!(m.service.as_str(),"text"|"image"|"vision"|"model3d") || !c.providers.iter().any(|p|p.id==m.provider) { return Err(bad("模型名称、类型或接入绑定无效")); }
-        if m.service=="model3d" && !crate::tripo::MODELS.contains(&m.model.as_str()) { return Err(bad("暂仅支持 Tripo P1 / H 系列模型")); }
+        // 模型清单按供应商校验：内置供应商（tripo/meshy/rodin/hunyuan3d/hi3d）只认各自注册表里的名字；
+        // 自定义接入仍按 Tripo 系（现有传输层只认识这些）
+        if m.service=="model3d" {
+            let allowed = crate::providers::models_of(&m.provider);
+            match allowed {
+                Some(list) => if !list.contains(&m.model.as_str()) { return Err(bad("该模型不在所选供应商的官方模型清单里")); },
+                None => if !crate::tripo::MODELS.contains(&m.model.as_str()) { return Err(bad("自定义接入暂仅支持 Tripo P1 / H 系列模型")); },
+            }
+        }
         if m.default && !m.enabled { return Err(bad("请先更换默认模型，再停用该模型")); }
     }
     for kind in ["text","image","vision","model3d"] {
@@ -312,8 +340,9 @@ pub async fn service_models(State(st): State<Arc<AppState>>, axum::extract::Quer
     let service = if let Some(id) = query.get("provider") {
         let c=settings.catalog();
         let p=c.providers.iter().find(|p|&p.id==id).ok_or((StatusCode::BAD_REQUEST,"接入不存在".into()))?;
-        if c.models.iter().any(|m|m.provider==p.id && m.service=="model3d") {
-            return Ok(Json(json!({"models":crate::tripo::MODELS,"default_model":crate::tripo::DEFAULT_MODEL})));
+        if let Some(allowed) = c.models.iter().find(|m|m.provider==p.id && m.service=="model3d").and_then(|m| crate::providers::models_of(&m.provider)) {
+            let default_model = c.models.iter().find(|m|m.provider==p.id && m.service=="model3d" && m.default).map(|m|m.model.clone()).or_else(|| allowed.first().map(|s|s.to_string()));
+            return Ok(Json(json!({"models":allowed,"default_model":default_model})));
         }
         Service { base_url:p.base_url.clone(),api_key:p.api_key.clone(),model:String::new() }
     } else { match query.get("service").map(String::as_str) {
@@ -436,8 +465,11 @@ mod tests {
         let s=Service { base_url:"https://example.com/v1".into(),model:"text-model".into(),api_key:"private-test-key".into() };
         let settings=Services { text:s.clone(),image:Service { model:"image-model".into(),..s },vision:None,catalog:None };
         let mut c=settings.catalog();
-        assert_eq!(c.providers.len(),2);
-        assert_eq!(c.models.len(),7);
+        // 五家内置供应商（tripo/meshy/rodin/hunyuan3d/hi3d）+ 文本/图片共用的一条自建接入
+        assert_eq!(c.providers.len(),6);
+        // 文本 1 + 图片 1 + 视觉 1 + 内置五家的模型（4+3+6+2+4=19）
+        assert_eq!(c.models.len(),22);
+        assert!(c.providers.iter().filter(|p| crate::providers::BUILTIN.iter().any(|b| b.id==p.id)).count()==5);
         assert!(!c.public().to_string().contains("private-test-key"));
         assert_eq!(c.resolve("image").unwrap().1.model,"image-model");
         c.models[1].enabled=false;
