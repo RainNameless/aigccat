@@ -1,3 +1,6 @@
+# ⚠ 此文件已暂停维护（2026-09-17）：网页订阅等能力已搬进单容器版，这里没有对应服务，
+#   部分链路（如 Studio）跑起来是断的。日常使用请用 docker-compose.allinone.yml。
+#   保留它是为了以后需要按服务拆分部署时有个起点，当前请勿按本文档排障。
 services:
   gateway:
     image: node:22-alpine
