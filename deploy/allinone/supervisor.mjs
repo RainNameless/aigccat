@@ -95,6 +95,16 @@ if (generated.length) {
   log(`已生成密钥并保存到 ${ENV_FILE}：${generated.join(', ')}`);
 }
 
+// 容器里有没有自带 Blender？
+// amd64 镜像装了官方 Blender；arm64 装不了（官方没有 Linux arm64 版），
+// 这时自动改用宿主机上的 Blender —— 两个镜像共用这一份代码。
+const LOCAL_BLENDER = process.env.BLENDER_BIN || '/opt/blender/blender';
+const HAS_LOCAL_BLENDER = fs.existsSync(LOCAL_BLENDER);
+const BLENDER_URL = process.env.BLENDER_WORKER_URL
+  || (HAS_LOCAL_BLENDER ? 'http://127.0.0.1:8788' : 'http://host.docker.internal:8788');
+const RIG_URL = process.env.RIG_HOST_URL
+  || (HAS_LOCAL_BLENDER ? 'http://127.0.0.1:8791' : 'http://host.docker.internal:8791');
+
 const WEB_PORT = 8081;   // 只在容器内回环，对外只有 gateway 的 8080
 const WEB = `http://127.0.0.1:${WEB_PORT}`;
 
@@ -153,9 +163,7 @@ const children = [
       RIG_AGENT_URL: 'http://127.0.0.1:4097',
       RIG_AGENT_TOKEN: RIG_TOKEN,
       SERVICES_PUBLIC_ORIGIN: process.env.AUTH_ORIGIN || '',
-      // 单容器里 Blender 工作器就在同一个容器内（见下面的 children），默认指本机；
-      // 想改用自己的宿主 Blender，设 BLENDER_WORKER_URL 覆盖即可。
-      BLENDER_WORKER_URL: process.env.BLENDER_WORKER_URL || 'http://127.0.0.1:8788',
+      BLENDER_WORKER_URL: BLENDER_URL,
       STUDIO_WORKER_URL: process.env.STUDIO_WORKER_URL || 'http://host.docker.internal:8790',
     },
     ready: {url: `${WEB}/api/assets`, label: '后端就绪', anyStatus: true},
@@ -184,8 +192,7 @@ const children = [
       AIGCCAT_URL: WEB,
       RIG_AGENT_TOKEN: RIG_TOKEN,
       OPENCODE_SERVER_PASSWORD: RIG_TOKEN,
-      // 绑骨桥（host.py）同样在容器内，见下面的 children
-      RIG_HOST_URL: process.env.RIG_HOST_URL || 'http://127.0.0.1:8791',
+      RIG_HOST_URL: RIG_URL,
     },
   },
 ];
@@ -276,8 +283,16 @@ log(`aigccat 单容器启动，数据目录 ${DATA}`);
 // web 启动时会调 ensure_bucket() 建 bucket，只跑一次；如果 minio 还没就绪，
 // 建桶会失败并且不会重试 —— 表现为「能用但一存资产就报 NoSuchBucket」。
 const byName = (n) => children.find((c) => c.name === n);
-for (const name of ['minio', 'web', 'gateway']) {
+// Blender 工作器与绑骨桥只在「镜像自带 Blender」时启动；没有就跳过，由宿主那份顶上。
+const order = ['minio'];
+if (HAS_LOCAL_BLENDER) order.push('blender', 'rig-bridge');
+order.push('web', 'gateway');
+log(HAS_LOCAL_BLENDER
+  ? `容器自带 Blender（${LOCAL_BLENDER}），减面/重拓扑/绑骨在容器内执行`
+  : '容器内没有 Blender（该架构无官方构建），改用宿主机上的 —— 请确保宿主 Blender 工作器在跑');
+for (const name of order) {
   const def = byName(name);
+  if (!def) continue;
   launch(def);
   await waitReady(def);
 }

@@ -99,11 +99,15 @@ browser ──► gateway :8080   (the only exposed port; unified auth)
                │
                ├── MinIO    (single source of truth for assets)
                │
-               └── host workers (optional, on demand)
-                     ├─ :8788  Blender 5.2.1 execution layer
-                     ├─ :8790  Studio subscription session runner
-                     └─ :8791  OpenCode → Blender bridge
+               ├── :8788  Blender 5.2.1   (decimate / remesh / part edit / auto-rig)
+               ├── :4097  OpenCode        (AI writes Blender scripts)
+               └── :8791  OpenCode → Blender bridge
 ```
+**All of the above live in a single container** — one `docker run`, no Blender install needed.
+
+The only piece still on the host is the **Studio web-subscription runner (:8790)** — it has to open a
+real browser window a human operates, which cannot live inside a container
+(see [Studio session setup](docs/STUDIO-SESSION.md)). Skipping it only affects that one path.
 
 - **Backend**: Rust + axum. All routes are registered in `web/src/main.rs`; modules only provide handlers
 - **Frontend**: framework-free, build-free vanilla HTML/JS/CSS with a locally vendored Three.js
@@ -141,6 +145,13 @@ little server genuinely helps.
 docker run -d --name aigccat -p 8080:8080 -v aigccat-data:/data \
   ghcr.io/rainnameless/aigccat:latest
 ```
+
+> **About Blender**: the amd64 image **bundles Blender 5.2** — decimate / remesh / part edit /
+> auto-rig work out of the box. The arm64 image does not include Blender, because Blender only
+> publishes a **Linux x64** build (macOS and Windows have arm64 builds, Linux does not).
+> In that case the container automatically uses the **Blender on your host** — so on Apple
+> Silicon, install Blender once and those features light up.
+
 
 Open `http://localhost:8080`. The initial admin password is printed once on first start:
 

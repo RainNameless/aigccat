@@ -4,7 +4,7 @@
 |---|---|
 | [`../README.md`](../README.md) | 项目介绍（中文）：能力、架构、快速开始、已知限制 |
 | [`../README.en.md`](../README.en.md) | Project overview (English) |
-| [`DEPLOYMENT.md`](DEPLOYMENT.md) | **部署指南**：本机部署、生产自托管、宿主工作器、升级、备份、常见问题 |
+| [`DEPLOYMENT.md`](DEPLOYMENT.md) | **部署指南**：单容器部署、多容器开发、可选工作器、自托管、升级、备份、常见问题 |
 | [`UI.md`](UI.md) | **界面规范**：页面路由、主题变量、11 个工具、查看器、改前端的硬性约定 |
 | [`MCP.md`](MCP.md) | **MCP 接入指南**：17 个工具、推送协议、归类规则、对话示例 |
 | [`STUDIO-SESSION.md`](STUDIO-SESSION.md) | **接入你自己的网页订阅会话**：四步接上账号与积分、验证、排查、凭据边界 |

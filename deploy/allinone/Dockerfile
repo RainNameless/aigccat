@@ -68,12 +68,21 @@ FROM ${MINIO_IMAGE} AS minio
 # 实测 Debian 自带的 Blender 3.4.1：能启动、能建网格，但 decimate/remesh 报 Traceback、rig 直接拒绝
 # —— 版本不对一行都跑不通，所以必须装官方版。
 #
-# ⚠ Blender 官方**只发布 Linux x64**，没有 linux-arm64（实测 arm64 包 404，4.5 全系同样只有 x64）。
-# 因此这个镜像按 amd64 构建；Apple Silicon 上由 Docker Desktop 的 Rosetta 运行
-# （已实测：decimate 45s / remesh 18s / rig 20s，可用）。
+# ⚠ Blender 官方**只有 Linux x64**：5.2 目录里 linux 只有 `-linux-x64.tar.xz`，
+# 而 macos-arm64 / windows-arm64 都有 —— 也就是说**没有 Linux arm64 版**。
+#
+# 所以按架构分支：amd64 装官方 Blender（容器内跑，实测 decimate 45s / remesh 18s / rig 20s）；
+# arm64 装不了 → 镜像里不含 Blender，运行时由 supervisor 自动改用宿主机的 Blender。
+# 两种镜像共用同一份 supervisor，靠「Blender 二进制在不在」判断，不维护两套代码。
+#
+# ⚠ 试过「整个镜像做 amd64、Apple Silicon 走 Rosetta」，**行不通**：
+#   MinIO 是 Go 写的，在 Rosetta 下会崩 ——
+#   `runtime: lfstack.push invalid packing: node=0xffff... -> node=0xffffffff...`
+#   （Go runtime 指针在 Rosetta 下的已知问题）。Blender 是 C++，反而能在 Rosetta 下跑。
 FROM ${DEBIAN_IMAGE} AS blender
 
 ARG BLENDER_VERSION
+ARG TARGETARCH
 ARG APT_MIRROR=""
 # download.blender.org 会挡某些网络的直连（实测直连 403、走代理 200），
 # 所以单独给它一个可选的代理参数，不影响其余阶段（apt 走国内源、npm 直连都正常）。
@@ -86,13 +95,19 @@ RUN set -eux; \
     fi; \
     apt-get update -o Acquire::Retries=8; \
     apt-get install -y --no-install-recommends curl xz-utils ca-certificates; \
-    curl -fsSL --retry 3 ${CURL_PROXY:+--proxy "$CURL_PROXY"} -o /tmp/blender.tar.xz \
-      "https://download.blender.org/release/Blender${BLENDER_VERSION%.*}/blender-${BLENDER_VERSION}-linux-x64.tar.xz"; \
-    mkdir -p /opt; \
-    tar xf /tmp/blender.tar.xz -C /opt; \
-    rm -f /tmp/blender.tar.xz; \
-    mv "/opt/blender-${BLENDER_VERSION}-linux-x64" /opt/blender; \
-    /opt/blender/blender --version | head -1
+    mkdir -p /opt/blender; \
+    if [ "$TARGETARCH" = "amd64" ]; then \
+      curl -fsSL --retry 3 ${CURL_PROXY:+--proxy "$CURL_PROXY"} -o /tmp/blender.tar.xz \
+        "https://download.blender.org/release/Blender${BLENDER_VERSION%.*}/blender-${BLENDER_VERSION}-linux-x64.tar.xz"; \
+      tar xf /tmp/blender.tar.xz -C /tmp; \
+      rm -f /tmp/blender.tar.xz; \
+      rm -rf /opt/blender; \
+      mv "/tmp/blender-${BLENDER_VERSION}-linux-x64" /opt/blender; \
+      /opt/blender/blender --version | head -1; \
+    else \
+      echo "Blender 官方没有 Linux ${TARGETARCH} 版，本镜像不含 Blender；运行时将用宿主机的"; \
+      touch /opt/blender/.no-local-blender; \
+    fi
 
 # ───────────────────────── 阶段 4：运行时 ─────────────────────────
 FROM ${NODE_IMAGE}
@@ -125,7 +140,12 @@ RUN set -eux; \
 
 # Blender 5.2（上面那批是它无头运行需要的图形库；容器里没有 GPU，渲染走软件实现）
 COPY --from=blender /opt/blender /opt/blender
-RUN ln -sf /opt/blender/blender /usr/local/bin/blender && blender --version | head -1
+RUN if [ -x /opt/blender/blender ]; then \
+      ln -sf /opt/blender/blender /usr/local/bin/blender; \
+      blender --version | head -1; \
+    else \
+      echo "本镜像不含 Blender（该架构没有官方构建），运行时用宿主机上的"; \
+    fi
 
 # 存储
 COPY --from=minio /usr/bin/minio /usr/local/bin/minio

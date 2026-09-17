@@ -1,6 +1,6 @@
 # 部署指南
 
-覆盖四种形态：**单容器**（最省事，推荐）、**多容器本机开发**、**宿主工作器**（可选能力）、**公网自托管**。
+覆盖四种形态：**单容器**（最省事，推荐）、**多容器本机开发**、**可选工作器**（换用你自己的 Blender）、**公网自托管**。
 
 ---
 
@@ -12,13 +12,19 @@
 | `web` | 容器内 `8080` | ✅ | Rust + axum，不发布宿主端口 |
 | `minio` | `9000` / `9001` | ✅ | 资产唯一事实来源 |
 | `opencode` | 内部 `4097` | 可选 | AI 绑骨所需 |
-| Blender 工作器 | `127.0.0.1:8788` | 可选 | 减面 / 重拓扑 / 部件编辑 / 绑骨 |
-| Studio 执行器 | `8790` | 可选 | Studio 网页订阅会话生成 |
-| OpenCode 桥接 | `8791` | 可选 | AI 写 Blender 脚本 |
+| **Blender 5.2** | 容器内 `8788` | ✅（单容器自带） | 减面 / 重拓扑 / 部件编辑 / 自动绑骨 |
+| OpenCode → Blender 桥接 | 容器内 `8791` | 可选 | AI 写 Blender 脚本 |
+| Studio 执行器 | 宿主 `8790` | 可选 | Studio 网页订阅会话生成（**唯一留在宿主的一项**） |
 
-**不启动工作器也能跑**，只是相关功能显示为不可达，界面会给出明确提示，**不会伪造成功**。
+**单容器版把 Blender 5.2 也打进镜像了** —— 减面、重拓扑、部件编辑、自动绑骨开箱可用，不用另装 Blender。
+唯一还在宿主机上的是 **Studio 网页订阅执行器**：它要弹出一个真人操作的浏览器窗口，容器里没有屏幕，
+物理上放不进去（见 [`STUDIO-SESSION.md`](STUDIO-SESSION.md)）。不装它只影响这一条链路。
 
-单容器版把前四项打进同一个镜像，顺序与端口不变，只是都收在容器内部近回环上，对外仍然只有 `8080`。
+> ⚠ 镜像有 **amd64 / arm64** 两个版本（Docker 自动选）。差别只在 Blender：
+> **amd64 版自带 Blender 5.2**（实测容器内 decimate 45s / remesh 18s / rig 20s）；
+> **arm64 版不含**（Blender 官方没有 Linux arm64 版），此时容器自动改用宿主机的 Blender。
+
+其余组件即使缺失也不会让服务起不来，界面会显示"不可达"，**不会伪造成功**。
 
 ---
 
@@ -30,6 +36,12 @@
 docker run -d --name aigccat -p 8080:8080 -v aigccat-data:/data \
   ghcr.io/rainnameless/aigccat:latest
 ```
+
+> **关于 Blender**：amd64 版镜像**自带 Blender 5.2**，减面 / 重拓扑 / 部件编辑 / 自动绑骨
+> 容器内直接可用。arm64 版不含 Blender —— Blender 官方只发布 Linux x64，没有 arm64 版
+> （macOS 与 Windows 的 arm64 版都有，唯独 Linux 没有）。这种情况容器会自动改用
+> **宿主机上的 Blender**，所以 Apple Silicon 上想用这些功能，装一个 Blender 即可。
+
 
 打开 `http://localhost:8080`。初始管理员密码只在首次启动打印一次：
 
@@ -171,25 +183,48 @@ docker compose -p aigccat -f docker-compose.yml up -d --no-deps --no-build --pul
 
 ---
 
-## 3. 宿主工作器（可选）
+## 3. 可选：改用你自己宿主上的 Blender
+
+**单容器镜像里已经带了 Blender 5.2，这一节通常用不到。** 只有这几种情况才需要看：
+
+- 你想用宿主上已经装好的 Blender（版本更新，或想共用同一份）
+- 你在跑多容器版（`docker-compose.yml`）—— 它没有把 Blender 打进镜像
+- 你要跑 Studio 网页订阅链路 —— 那个执行器**必须**在宿主上（见本节末尾）
+
+用宿主 Blender 覆盖容器内的默认（两个都要给，否则只会换掉一半）：
 
 ```bash
-# Blender 5.2.1 执行层（macOS，launchd 常驻、开机自启）
+BLENDER_WORKER_URL=http://host.docker.internal:8788 \
+RIG_HOST_URL=http://host.docker.internal:8791 \
+  docker compose -f docker-compose.allinone.yml up -d
+```
+
+宿主上启动 Blender 工作器（macOS，launchd 常驻、开机自启）：
+
+```bash
 launchctl kickstart -k gui/$(id -u)/cn.aigccat.blender-worker
+```
 
-# Studio 订阅会话执行器
-python3 scripts/studio-runner/install.py
+**不要把工作器当会话后台任务启动** —— 会话清理会带走进程，界面会显示"不可达"。
+`kickstart` 前若端口被旧进程占用，需先 kill 真实 PID，否则新进程立即 `exited`。
 
-# AI 绑骨：先起容器，再起宿主桥接
+多容器版的 AI 绑骨需要额外起宿主桥接：
+
+```bash
 docker compose -p aigccat -f docker-compose.yml build opencode
 docker compose -p aigccat -f docker-compose.yml up -d --no-deps --no-build --pull never opencode
 python3 scripts/opencode-runner/install-host.py
 ```
 
-**不要把工作器当会话后台任务启动**——会话清理会带走进程，界面会显示"不可达"。
-`kickstart` 前若端口被旧进程占用，需先 kill 真实 PID，否则新进程立即 `exited`。
+### Studio 订阅执行器（唯一必须在宿主的）
 
-**Studio 执行器需要先接入你自己的网页订阅会话**（用你自己的账号与积分），
+它要弹出一个真人操作的浏览器窗口，而容器里没有屏幕，物理上放不进去：
+
+```bash
+python3 scripts/studio-runner/install.py
+```
+
+**需要先接入你自己的网页订阅会话**（用你自己的账号与积分），
 四步接入、验证方法与排查见 **[接入你自己的网页订阅会话](STUDIO-SESSION.md)**。
 
 Linux 上用 systemd 托管等价的常驻单元即可。

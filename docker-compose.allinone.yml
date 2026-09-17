@@ -4,8 +4,10 @@
 #            + Blender 5.2（减面 / 重拓扑 / 部件编辑 / 自动绑骨）。
 # 首次启动自动生成密钥与初始账号，不用先配 .env。
 #
-# ⚠ 这个镜像按 amd64 构建：Blender 官方只发布 Linux x64，没有 arm64 版（实测 arm64 包 404）。
-#   Apple Silicon 上由 Docker Desktop 的 Rosetta 运行，功能一致。
+# ⚠ 镜像有 amd64 / arm64 两个版本，Docker 会自动选。
+#   amd64 版**自带 Blender 5.2**（减面/重拓扑/绑骨容器内直接可用）。
+#   arm64 版不含 Blender —— Blender 官方只发布 Linux x64，没有 arm64 版；
+#   这时容器会自动改用**宿主机上的 Blender**（macOS 装个 Blender 即可）。
 #
 # 用法（二选一）：
 #   1) 直接用预构建镜像（推荐，零编译）：
@@ -32,8 +34,6 @@ name: aigccat-allinone
 services:
   aigccat:
     image: ghcr.io/rainnameless/aigccat:latest
-    # Blender 官方只有 linux-x64，所以镜像固定 amd64；Apple Silicon 走 Rosetta
-    platform: linux/amd64
     build:
       context: .
       dockerfile: deploy/allinone/Dockerfile

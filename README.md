@@ -99,11 +99,14 @@ aigccat 是一条**自托管的 AI 3D 资产管线**：从文字或图片生成�
               │
               ├── MinIO    （资产唯一事实来源）
               │
-              └── 宿主工作器（可选，按需）
-                    ├─ :8788  Blender 5.2.1 执行层
-                    ├─ :8790  Studio 订阅会话执行器
-                    └─ :8791  OpenCode → Blender 桥接
+              ├── :8788  Blender 5.2.1   （减面 / 重拓扑 / 部件编辑 / 自动绑骨）
+              ├── :4097  OpenCode        （AI 写 Blender 脚本）
+              └── :8791  OpenCode → Blender 桥接
 ```
+**上面这些都在同一个容器里**，`docker run` 一条命令即可，不用另装 Blender。
+
+唯一还在宿主机上的是 **Studio 网页订阅执行器（:8790）** —— 它需要弹出一个真人要操作的浏览器窗口，
+物理上进不了容器（见 [网页订阅会话接入](docs/STUDIO-SESSION.md)）。不装它只影响这一条链路。
 
 - **后端**：Rust + axum，全部路由注册在 `web/src/main.rs`，各模块只提供 handler
 - **前端**：无框架、无构建步骤的原生 HTML/JS/CSS，Three.js 本地 vendored
@@ -137,6 +140,12 @@ docker run -d --name aigccat -p 8080:8080 -v aigccat-data:/data \
   ghcr.io/rainnameless/aigccat:latest
 ```
 
+> **关于 Blender**：amd64 版镜像**自带 Blender 5.2**，减面 / 重拓扑 / 部件编辑 / 自动绑骨
+> 容器内直接可用。arm64 版不含 Blender —— Blender 官方只发布 Linux x64，没有 arm64 版
+> （macOS 与 Windows 的 arm64 版都有，唯独 Linux 没有）。这种情况容器会自动改用
+> **宿主机上的 Blender**，所以 Apple Silicon 上想用这些功能，装一个 Blender 即可。
+
+
 打开 `http://localhost:8080`。初始账号密码只在首次启动时打印一次：
 
 ```bash
@@ -157,7 +166,7 @@ cp .env.example .env          # 填入 MINIO_ROOT_PASSWORD 与各服务 Key
 docker compose -p aigccat -f docker-compose.yml up -d --build
 ```
 
-完整步骤、宿主工作器、公网部署、常见问题见 **[部署指南](docs/DEPLOYMENT.md)**。
+完整步骤、可选工作器、常见问题见 **[部署指南](docs/DEPLOYMENT.md)**。
 
 > 想用「网页订阅」真的跑出模型（消耗你自己账号的积分）？这条链路需要在你自己的机器上接一次会话：
 > **[接入你自己的网页订阅会话](docs/STUDIO-SESSION.md)**。
