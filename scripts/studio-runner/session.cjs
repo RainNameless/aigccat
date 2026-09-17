@@ -88,12 +88,24 @@ async function launchBrowser(proxy){
   }
 }
 
+// 只暴露代理的 host:port（去掉可能的用户名密码），够诊断用，不泄漏凭据。
+function proxyHint(value){
+  if(!value)return null;
+  try{return new URL(value).host;}catch{return '已配置';}
+}
+
 function loginState(){
-  if(!pending)return {state:'idle',session:fs.existsSync(SESSION),loginUrl:LOGIN_URL,notice};
+  // configured_proxy：现在这份配置下，登录窗口**会不会**走代理。
+  // 有了它，直连不通的环境一眼就能看出问题，不用去翻进程参数。
+  const configured=proxyHint(resolveProxy());
+  if(!pending)return {state:'idle',session:fs.existsSync(SESSION),loginUrl:LOGIN_URL,notice,
+    configured_proxy:configured};
   return {
     state:'waiting',session:fs.existsSync(SESSION),loginUrl:LOGIN_URL,
     waited_seconds:Math.floor((Date.now()-pending.startedAt)/1000),
     timeout_seconds:Math.round(LOGIN_TIMEOUT_MS/1000),
+    configured_proxy:configured,
+    proxied:!!pending.proxy,proxy:proxyHint(pending.proxy),
   };
 }
 

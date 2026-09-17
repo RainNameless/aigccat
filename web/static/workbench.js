@@ -180,7 +180,10 @@ function dialogConnect() {
   const credits = studioHealth?.credits != null ? ` · 剩余积分 ${studioHealth.credits}` : "";
   let body =
     '<p class="help-line">这条链路用的是<strong>你自己账号</strong>的网页订阅积分，不是开发者 API 额度。凭据只写进运行执行器那台机器的 <code>.ai/browser-state/</code>，不上传、不入库。</p>' +
-    `<p class="help-line">当前状态：<strong>${connectNotice()}</strong>${credits}${s.notice ? ` · ${esc(s.notice)}` : ""}</p>`;
+    `<p class="help-line">当前状态：<strong>${connectNotice()}</strong>${credits}${s.notice ? ` · ${esc(s.notice)}` : ""}</p>` +
+    (s.configured_proxy
+      ? `<p class="help-line">登录窗口走代理 <code>${esc(s.configured_proxy)}</code>。</p>`
+      : '<p class="help-line">登录窗口<strong>直连，不走代理</strong>。如果这台机器需要代理才能访问上游，窗口里会一直加载不出来 —— 重装执行器时带上 <code>STUDIO_PROXY=http://主机:端口</code> 即可。</p>');
   if (waiting) {
     body +=
       '<p class="help-line">登录窗口是<strong>留给你自己操作</strong>的：这边不会替你去试，也不会去刷上游。' +

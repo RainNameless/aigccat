@@ -114,7 +114,32 @@ if os.environ.get('STUDIO_PROXY') is not None:
     env['STUDIO_PROXY']=os.environ['STUDIO_PROXY']
 plist={'Label':label,'ProgramArguments':[str(node),str(runtime/'server.cjs')],'WorkingDirectory':str(runtime),'EnvironmentVariables':env,'RunAtLoad':True,'KeepAlive':True,'StandardOutPath':str(private/'worker.log'),'StandardErrorPath':str(private/'error.log')}
 p=Path.home()/'Library/LaunchAgents'/f'{label}.plist';p.write_bytes(plistlib.dumps(plist))
-subprocess.run(['launchctl','kickstart','-k',f'{domain}/{label}'] if loaded else ['launchctl','bootstrap',domain,str(p)],check=True)
+
+# 必须 bootout + bootstrap —— 不能只用 kickstart -k。
+# 服务已经加载时，kickstart 用的是 launchd 内存里的旧配置，不会重读 plist，
+# 于是改了 EnvironmentVariables（比如新加 STUDIO_PROXY）进程里也看不到。
+# 这个坑实测踩过：plist 里明明有代理，进程环境里没有，导致登录窗口直连、页面一直转。
+if loaded:
+    subprocess.run(['launchctl','bootout',f'{domain}/{label}'],capture_output=True)
+    time.sleep(1)
+ok=False
+for _ in range(6):
+    if subprocess.run(['launchctl','bootstrap',domain,str(p)],capture_output=True).returncode==0:
+        ok=True;break
+    subprocess.run(['launchctl','bootout',f'{domain}/{label}'],capture_output=True)
+    time.sleep(1)
+if not ok:
+    raise SystemExit(f'注册服务失败。手动试试：\n  launchctl bootout {domain}/{label}\n  launchctl bootstrap {domain} {p}')
+
+# 自检：launchd 真的按新配置加载了环境变量吗（这是刚踩过的坑，必须当场验）
+def loaded_env():
+    out=subprocess.run(['launchctl','print',f'{domain}/{label}'],capture_output=True,text=True).stdout
+    return out
+mismatch=[k for k,v in env.items() if f'{k} =>' not in loaded_env()]
+if mismatch:
+    raise SystemExit(
+        'launchd 没有按新配置加载这些环境变量：'+', '.join(mismatch)+'\n'
+        '这类情况通常是旧的任务还在加载状态，稍等几秒重跑一次本脚本即可。')
 
 # ── 5. 等它就绪，并把结果讲清楚 ──
 for attempt in range(20):
