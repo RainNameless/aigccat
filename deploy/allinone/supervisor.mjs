@@ -67,6 +67,17 @@ function secret(name, len = 24) {
   return saved[name];
 }
 
+// 如果卷里已经有令牌文件（典型场景：从多容器版迁移过来，或复用旧数据卷），
+// 必须沿用它们，否则下面会生成新值并覆盖，导致外部脚本 / 网关 / CI 里
+// 正在使用的旧令牌全部失效。
+for (const [name, file] of [['AIGCCAT_PROXY_TOKEN', 'proxy.token'], ['AIGCCAT_AUTOMATION_TOKEN', 'automation.token']]) {
+  const p = path.join(DIR.authSec, file);
+  if (!process.env[name] && !saved[name] && fs.existsSync(p)) {
+    const v = fs.readFileSync(p, 'utf8').trim();
+    if (v) { saved[name] = v; log(`沿用卷里已有的 ${file}`); }
+  }
+}
+
 const MINIO_USER = process.env.MINIO_ROOT_USER || 'aigccat';
 const MINIO_PASS = secret('MINIO_ROOT_PASSWORD');
 const RIG_TOKEN  = secret('RIG_AGENT_TOKEN');
@@ -244,13 +255,21 @@ launch(byName('opencode'));
 
 if (FIRST_BOOT) {
   fs.writeFileSync(path.join(DATA, '.initialized'), new Date().toISOString() + '\n');
+  // 只有当账号库确实是空的（网关会走 bootstrap 建号）时，才打印初始账号密码。
+  // 否则（典型场景：数据卷是从多容器版迁移过来的）会打印一个根本没生效的随机密码，
+  // 让人以为登录密码被改了。
+  const freshAccounts = !fs.existsSync(path.join(DIR.authData, 'accounts.json'));
   console.log('');
   console.log('  ────────────────────────────────────────────────');
   console.log('   aigccat 已就绪');
-  console.log(`   访问地址：http://localhost:8080`);
-  console.log(`   初始账号：${ADMIN_USER}`);
-  console.log(`   初始密码：${ADMIN_PASS}`);
-  console.log('   （上面这行只在首次启动打印一次，也会存到 /data/aigccat.env）');
+  console.log('   访问地址：http://localhost:8080');
+  if (freshAccounts) {
+    console.log(`   初始账号：${ADMIN_USER}`);
+    console.log(`   初始密码：${ADMIN_PASS}`);
+    console.log('   （上面这行只在首次启动打印一次，也会存到 /data/aigccat.env）');
+  } else {
+    console.log('   检测到数据卷里已有账号库，沿用其中的账号与密码，未创建新账号。');
+  }
   console.log('  ────────────────────────────────────────────────');
   console.log('');
 } else {

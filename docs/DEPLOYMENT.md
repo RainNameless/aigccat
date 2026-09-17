@@ -65,6 +65,64 @@ docker build -f deploy/allinone/Dockerfile \
 
 ---
 
+### 1.1 从多容器迁移到单容器
+
+已经是多容器部署、想换成单容器（数据不丢）时按下面走。**先备份，别跳。**
+
+```bash
+# 0) 备份：三个 volume + 宿主账号库
+BK=~/aigccat-migration-backup-$(date +%Y%m%d)
+mkdir -p "$BK/volumes"
+for v in minio_data services_config opencode_data; do
+  docker run --rm -v aigccat_$v:/from:ro -v "$BK/volumes":/to alpine tar czf /to/$v.tgz -C /from .
+done
+cp -R ~/.config/aigccat/auth "$BK/host-auth"
+
+# 1) 停旧栈（保留 volume，便于回滚）
+docker compose -p aigccat -f docker-compose.yml down --remove-orphans
+
+# 2) 建新卷，把旧数据并进同一个 /data
+docker volume create aigccat-allinone_aigccat-data
+docker run --rm \
+  -v aigccat-allinone_aigccat-data:/data \
+  -v aigccat_minio_data:/old-minio:ro -v aigccat_services_config:/old-config:ro \
+  -v aigccat_opencode_data:/old-opencode:ro \
+  -v "$HOME/.config/aigccat/auth/data":/old-auth-data:ro \
+  -v "$HOME/.config/aigccat/auth/secrets":/old-auth-secrets:ro \
+  alpine sh -c '
+    mkdir -p /data/{minio,config,opencode,tasks,auth/data,auth/secrets}
+    cp -a /old-minio/. /data/minio/;  cp -a /old-config/. /data/config/
+    cp -a /old-opencode/. /data/opencode/
+    cp -a /old-auth-data/. /data/auth/data/; cp -a /old-auth-secrets/. /data/auth/secrets/
+    chmod 600 /data/auth/data/*.json /data/auth/secrets/*.token
+    printf "AIGCCAT_PROXY_TOKEN=%s\nAIGCCAT_AUTOMATION_TOKEN=%s\n" \
+      "$(cat /old-auth-secrets/proxy.token)" "$(cat /old-auth-secrets/automation.token)" > /data/aigccat.env
+    chmod 600 /data/aigccat.env'
+
+# 3) 起单容器（compose 会从根 .env 读 MINIO 密码与各服务 Key）
+docker compose -f docker-compose.allinone.yml up -d
+```
+
+迁移后要确认的四件事：
+
+1. **能登录**：用原来的账号密码（账号库是搬过来的，密码不变；启动器只在账号库为空时才会建新号并打印初始密码）
+2. **资产数一致**：`curl -b cookies http://localhost:8080/api/assets | jq '.assets|length'`
+3. **模型能下载**：取一个资产的 `.../file/versions/<ver>/model.glb` 应为 200 且是合法 GLB
+4. **宿主工作器还在**：进容器查 `http://127.0.0.1:4097/health`，`ready:true` 且 `blender` 有版本号
+
+**回滚**：旧 volume 不会被动过。
+
+```bash
+docker compose -f docker-compose.allinone.yml down
+docker compose -p aigccat -f docker-compose.yml up -d     # 回到多容器，数据还认得
+```
+
+> ⚠ 一个操作习惯要跟着改：多容器版把 `web/static` 和 `scripts/auth-server` **bind mount** 进容器，
+> 改完刷新就生效；单容器里这些是**烤进镜像**的，改完要 `docker compose -f docker-compose.allinone.yml up -d --build` 才看得到。
+> （想保留热更新，就继续用多容器版开发，单容器版专门用来分发/部署。）
+
+---
+
 ## 2. 多容器：本机 / 内网
 
 ### 前置
