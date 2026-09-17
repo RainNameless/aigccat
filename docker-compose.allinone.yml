@@ -20,6 +20,12 @@
 #
 # 打开 http://localhost:8080 ；初始账号密码在首次启动的日志里（docker compose logs）。
 #
+# 想锁定架构（默认由 Docker 按本机 CPU 自动选）：
+#   · x86 服务器 / Windows：  DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f docker-compose.allinone.yml up -d
+#   · ARM 机器：              DOCKER_DEFAULT_PLATFORM=linux/arm64 docker compose -f docker-compose.allinone.yml up -d
+#   Apple Silicon 上跑 amd64 需要先在 Docker Desktop 打开 Rosetta 模拟，
+#   否则会走 qemu 软件模拟：又慢又可能在 Go 程序上直接崩。
+#
 # 可选：在仓库根目录建一个 .env，compose 会自动读取这些变量：
 #   OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL   文字模型（生成计划、命名等）
 #   TRIPO_API_KEY                                     Tripo API 建模（可选）

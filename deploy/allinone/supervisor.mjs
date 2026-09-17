@@ -165,6 +165,9 @@ const children = [
   },
   {
     // AI 写 Blender 脚本的执行桥（原来在宿主 8791）。同一份 host.py。
+    // ⚠ host.py 开头就对 RIG_TASK_ROOT / RIG_AGENT_TOKEN 做 os.environ[...]（缺了直接 KeyError 退出），
+    // 而 launch() 给子进程的 env 是「整个替换」，不会继承 —— 这两项必须显式传，否则
+    // 它会 1 秒一次地重启，5 次之后把整个容器带退出（amd64 镜像曾因此完全起不来）。
     name: 'rig-bridge', critical: false,
     cmd: '/usr/bin/python3',
     args: ['/app/host.py'],
@@ -172,8 +175,13 @@ const children = [
     env: {
       ...process.env,
       BLENDER_BIN: process.env.BLENDER_BIN || '/opt/blender/blender',
+      RIG_AGENT_TOKEN: RIG_TOKEN,
+      // 与 opencode 侧的 /tasks 软链指向同一个目录（/data/opencode-tasks）
+      RIG_TASK_ROOT: DIR.tasks,
     },
-    ready: {url: 'http://127.0.0.1:8791/health', label: '绑骨桥就绪'},
+    // host.py 要 Bearer 令牌，裸探会拿到 401 —— 能应答就说明进程活着，所以 anyStatus。
+    // （不加这个的话就绪等待会一直等到 120 秒超时才放行，容器启动白慢两分钟。）
+    ready: {url: 'http://127.0.0.1:8791/health', label: '绑骨桥就绪', anyStatus: true},
   },
   {
     // 虚拟屏幕。容器没有物理显示器，而登录窗口必须是一个「有头」浏览器
@@ -316,8 +324,15 @@ function launch(def) {
     rec.restarts = rec.restarts.filter((t) => now - t < 60_000);
     rec.restarts.push(now);
     if (rec.restarts.length > 5) {
-      warn(`${def.name} 一分钟内反复退出，容器将退出交由 Docker 重启策略处理`);
-      shutdown(1);
+      if (def.critical) {
+        warn(`${def.name} 一分钟内反复退出，容器将退出交由 Docker 重启策略处理`);
+        shutdown(1);
+      } else {
+        // 可选组件崩了不该把整个产品带走：停止重启，并明确说清「哪个功能不可用」。
+        // 实测教训：rig-bridge 少一个环境变量就会 1 秒一次地重启，
+        // 于是 5 次之后把整个 amd64 容器带退出 —— 用户看到的是「镜像根本起不来」。
+        warn(`${def.name} 一分钟内反复退出，已停止重启：该功能将不可用，其余功能不受影响`);
+      }
       return;
     }
     setTimeout(() => { if (!stopping) { log(`重启 ${def.name}`); launch(def); } }, 1500);
