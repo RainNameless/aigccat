@@ -132,6 +132,8 @@ print('  执行器已就绪：http://127.0.0.1:8790')
 print(f'  运行副本：{runtime}')
 print(f'  私有目录（登录态与令牌，权限 600）：{private}')
 print('  登录会话：'+('已接入' if has_session else '未接入 —— 到界面里点「连接网页订阅」，或跑 connect-session.cjs'))
+if 'STUDIO_PROXY' not in env:
+    print('  代理：未配置（直连）。需要代理的网络环境，重装时在前面带上 STUDIO_PROXY=http://主机:端口')
 if generated_token:
     print('')
     print(f'  已生成执行器令牌：{token_src}')

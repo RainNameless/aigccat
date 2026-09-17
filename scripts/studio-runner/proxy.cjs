@@ -1,39 +1,25 @@
-// 会话执行器与登录向导共用的代理解析。
+// 代理：只在显式指定时使用。
+// 优先级：显式参数 > 环境变量 STUDIO_PROXY > 直连。
 //
-// 代理是可选的。开发机上常年挂着一个本地代理（默认端口 7897）时能直连上游，
-// 但别人的机器上通常没有这个端口 —— 如果写死成默认值，换一台机器就会连不上。
-// 规则：
-//   1) 显式传入（命令行或 STUDIO_PROXY）就照它走，空串 = 强制直连；
-//   2) 都没设时，只在本机 7897 真的有进程监听才使用，否则直连。
-// 这样本机既有行为不变，换台机器也不会因为一个不存在的代理而失败。
-const net = require('node:net');
+// 刻意不做「探测本机某端口是否在听」的自动判断 —— 端口在听不等于它是一个可用代理：
+// 可能是完全不相干的本地服务。把请求路由过去既不可靠，也等于把上游流量交给一个
+// 我们不了解的程序。所以要代理就必须自己写清楚。
+const LEGACY_PORT_HINT = 'http://127.0.0.1:7897';
 
-const LEGACY = 'http://127.0.0.1:7897';
-
-function listening(port, host = '127.0.0.1', ms = 800) {
-  return new Promise(resolve => {
-    const socket = net.connect({ host, port });
-    let settled = false;
-    const finish = value => { if (settled) return; settled = true; socket.destroy(); resolve(value); };
-    socket.setTimeout(ms);
-    socket.once('connect', () => finish(true));
-    socket.once('timeout', () => finish(false));
-    socket.once('error', () => finish(false));
-  });
+function normalize(value) {
+  if (value === undefined || value === null) return '';
+  return String(value).trim();
 }
 
-async function resolveProxy(explicit) {
-  if (explicit !== undefined) return String(explicit).trim();
-  if (process.env.STUDIO_PROXY !== undefined) return String(process.env.STUDIO_PROXY).trim();
-  try {
-    const port = Number(new URL(LEGACY).port);
-    if (port && await listening(port)) return LEGACY;
-  } catch {}
-  return '';
+// explicit 传字符串（含空串=强制直连）；不传则看环境变量；都没有就是直连。
+function resolveProxy(explicit) {
+  if (explicit !== undefined) return normalize(explicit);
+  return normalize(process.env.STUDIO_PROXY);
 }
 
+// 传给 Playwright 的 proxy 选项：空字符串代表「不要代理」
 function options(proxy) {
   return proxy ? { server: proxy } : undefined;
 }
 
-module.exports = { resolveProxy, listening, options, LEGACY };
+module.exports = { resolveProxy, options, LEGACY_PORT_HINT };

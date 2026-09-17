@@ -78,9 +78,21 @@ STUDIO_PROXY= node scripts/studio-runner/connect-session.cjs
 node scripts/studio-runner/connect-session.cjs --timeout 600
 ```
 
-> **代理是可选的，而且是自动判断的。** 没有设置 `STUDIO_PROXY` 时，代码只在本机
-> `127.0.0.1:7897` 真的有人监听才使用它，否则直连 —— 所以别人的机器上不会因为
-> 一个不存在的代理端口而失败。代理只在需要时才配。
+> **代理只在显式配置时使用**（环境变量 `STUDIO_PROXY`，或命令行的 `--proxy`）。不设置就是直连。
+> 我们**不会**去猜某个本地端口是不是代理 —— 「端口在听」不等于「它是个能用的代理」，
+> 把上游流量交给一个不相干的本地服务既不可靠也不安全。
+>
+> 需要代理的网络环境下，装常驻执行器时把同一行前面也带上它，代理才会写进服务配置：
+>
+> ```bash
+> STUDIO_PROXY=http://127.0.0.1:7897 python3 scripts/studio-runner/install.py
+> ```
+>
+> 判断代理是否真的能用（**注意端口在听 ≠ 能出网**）：
+>
+> ```bash
+> curl -x http://127.0.0.1:7897 -o /dev/null -w '%{http_code}\n' https://api.tripo3d.ai/
+> ```
 
 ## 3. 怎么算成功（三个都可自查）
 
@@ -113,7 +125,8 @@ node scripts/studio-runner/connect-session.cjs --timeout 600
 | 点【我已登录】提示「还没有检测到登录」 | 那个窗口里还没登录成功 | 回去把登录走完（有时要过邮箱验证码），再点一次【我已登录】 |
 | 弹窗自己关了，提示「等待登录超时」 | 超过 10 分钟没完成 | 重新打开登录窗口 |
 | `--verify` 报「登录已失效」 | 会话确实过期，**或**上游瞬时抖动 | 等十几秒重试；持续失效再重新登录（第 2 步） |
-| 报「登录会话刷新连接失败」 | 网络不通 / 代理没生效 | 设置 `STUDIO_PROXY` 后重试 |
+| 报「登录会话刷新连接失败」 | 网络不通 / 代理没生效 | 按上面那条命令先确认代理能不能出网；**代理端口在听不代表它通** |
+| 界面显示「未连接 · 连不上上游（网络或代理不通）」 | 同上：上游真的连不上 | 同上。代理恢复后状态会自己变回「已连接」（界面每 30 秒会复查一次） |
 | 生成中途失败 | 上游任务失败或超过 30 分钟 | 在任务记录里查原任务；**系统不会自动重发付费请求** |
 | 登录页要求验证码 | 正常的风控 | 在打开的浏览器里手动完成，工具会等你 |
 
@@ -215,9 +228,23 @@ STUDIO_PROXY=http://127.0.0.1:7897 node scripts/studio-runner/connect-session.cj
 STUDIO_PROXY= node scripts/studio-runner/connect-session.cjs            # force direct connection
 ```
 
-> **The proxy is optional and auto-detected.** With `STUDIO_PROXY` unset, the code uses
-> `127.0.0.1:7897` only if something is actually listening there, and otherwise connects directly —
-> so a machine without that local proxy port does not fail.
+> **A proxy is used only when you configure one explicitly** (`STUDIO_PROXY`, or `--proxy` on the CLI).
+> Unset means a direct connection. We deliberately do **not** guess whether some local port is a proxy —
+> "the port is listening" does not mean "it is a usable proxy", and routing upstream traffic into an
+> unrelated local service is neither reliable nor safe.
+>
+> If your network needs a proxy, pass it when installing the resident worker so it lands in the service
+> configuration:
+>
+> ```bash
+> STUDIO_PROXY=http://127.0.0.1:7897 python3 scripts/studio-runner/install.py
+> ```
+>
+> To check whether a proxy actually works (**listening ≠ can reach the internet**):
+>
+> ```bash
+> curl -x http://127.0.0.1:7897 -o /dev/null -w '%{http_code}\n' https://api.tripo3d.ai/
+> ```
 
 ## Verifying it works
 

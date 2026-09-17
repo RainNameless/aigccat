@@ -20,8 +20,9 @@ const KEEP_DOMAIN=d=>d==='tripo3d.ai'||String(d).endsWith('.tripo3d.ai');
 const LOGIN_TIMEOUT_MS=Number(process.env.STUDIO_LOGIN_TIMEOUT_MS||10*60*1000);
 
 /* ─────────── 校验与落盘 ─────────── */
-// 与执行器 /health 同一条链路：先用 cookie 换 JWT，再读钱包。不提交任何生成。
-async function inspect(cookies,proxy){
+// 只做「用 cookie 换 JWT」这一步。登录探测只需要它 —— 不要每次都去读钱包，
+// 那会让每次状态轮询都向上游发两个请求。
+async function tokenize(cookies,proxy){
   const cookieClient=await request.newContext({proxy:proxyOptions(proxy),timeout:60000,storageState:{cookies,origins:[]}});
   try{
     let response;
@@ -29,18 +30,24 @@ async function inspect(cookies,proxy){
     catch{return {ok:false,reason:'连不上上游（网络或代理不通）'};}
     const body=await response.json().catch(()=>({}));
     if(!response.ok()||!body.tokenized)return {ok:false,reason:`登录已失效（HTTP ${response.status()}）`};
-    const jwt=body.tokenized;
     let expires=null;
-    try{expires=JSON.parse(Buffer.from(jwt.split('.')[1],'base64url')).exp*1000;}catch{}
-    let credits=null;
-    const api=await request.newContext({proxy:proxyOptions(proxy),timeout:60000,extraHTTPHeaders:{origin:ORIGIN,referer:ORIGIN+'/'}});
-    try{
-      const pay=await api.get(PAYMENT,{headers:{authorization:'Bearer '+jwt},maxRetries:0,maxRedirects:0});
-      const pj=await pay.json().catch(()=>({}));
-      if(pay.ok())credits=pj.data?.wallet?.total_credit??null;
-    }catch{} finally{await api.dispose();}
-    return {ok:true,expires,credits};
+    try{expires=JSON.parse(Buffer.from(body.tokenized.split('.')[1],'base64url')).exp*1000;}catch{}
+    return {ok:true,jwt:body.tokenized,expires};
   }finally{await cookieClient.dispose();}
+}
+
+// 完整校验：换 JWT + 读一次剩余积分。与执行器 /health 同一条链路，不提交任何生成。
+async function inspect(cookies,proxy){
+  const token=await tokenize(cookies,proxy);
+  if(!token.ok)return token;
+  let credits=null;
+  const api=await request.newContext({proxy:proxyOptions(proxy),timeout:60000,extraHTTPHeaders:{origin:ORIGIN,referer:ORIGIN+'/'}});
+  try{
+    const pay=await api.get(PAYMENT,{headers:{authorization:'Bearer '+token.jwt},maxRetries:0,maxRedirects:0});
+    const pj=await pay.json().catch(()=>({}));
+    if(pay.ok())credits=pj.data?.wallet?.total_credit??null;
+  }catch{} finally{await api.dispose();}
+  return {ok:true,expires:token.expires,credits};
 }
 
 // 兼容两种来源：本模块产出的 {storageState:{cookies}}，以及 Playwright 原生的 {cookies}
@@ -86,13 +93,15 @@ async function closePending(){
 }
 
 // 后台探一次登录是否已经完成，只用于状态展示——保存仍然由用户点「我已登录」触发。
+// 只换 JWT（不读钱包），间隔 5 秒，尽量少打扰上游。
 async function probe(){
   if(!pending||pending.detected)return;
   const state=await pending.context.storageState().catch(()=>null);
-  if(!state)return;
+  // 浏览器已经没了（用户自己关了窗口等）：别留着「等待登录」的僵尸状态
+  if(!state){await cancelLogin('登录窗口已关闭，登录流程结束');return;}
   const cookies=state.cookies.filter(c=>KEEP_DOMAIN(c.domain));
   if(!cookies.length)return;
-  const result=await inspect(cookies,pending.proxy);
+  const result=await tokenize(cookies,pending.proxy);
   if(result.ok&&pending)pending.detected=true;
 }
 
@@ -109,7 +118,7 @@ async function startLogin(explicitProxy){
     if(!pending)return;
     if(Date.now()-pending.startedAt>LOGIN_TIMEOUT_MS){await cancelLogin('等待登录超时，登录窗口已关闭');return;}
     await probe().catch(()=>{});
-  },3000);
+  },5000);
   pending.timer.unref?.();
   return loginState();
 }
@@ -143,5 +152,5 @@ async function cancelLogin(reason='已取消登录窗口'){
 
 function isBusy(){return !!pending;}
 
-module.exports={inspect,readSession,saveSession,startLogin,finishLogin,cancelLogin,loginState,isBusy,
+module.exports={inspect,tokenize,readSession,saveSession,startLogin,finishLogin,cancelLogin,loginState,isBusy,
   SESSION,TOKEN_FILE,STATE_DIR,LOGIN_URL,KEEP_DOMAIN};
