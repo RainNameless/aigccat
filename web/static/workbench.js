@@ -171,7 +171,7 @@ function connectNotice() {
   const s = connectFlow.state;
   if (!s) return "正在读取状态…";
   if (s.state === "unavailable") return `执行器不可达 · ${s.error || "未知原因"}`;
-  if (s.state === "waiting") return s.detected ? "已检测到登录，请点「我已登录」" : "等待你在浏览器里登录…";
+  if (s.state === "waiting") return "登录窗口已打开，等你在那边操作";
   return studioHealth?.ready ? "已连接" : "未连接";
 }
 function dialogConnect() {
@@ -183,7 +183,10 @@ function dialogConnect() {
     `<p class="help-line">当前状态：<strong>${connectNotice()}</strong>${credits}${s.notice ? ` · ${esc(s.notice)}` : ""}</p>`;
   if (waiting) {
     body +=
-      `<p class="help-line">登录窗口已打开${s.waited_seconds ? `（已等待 ${s.waited_seconds} 秒）` : ""}。它出现在<strong>运行执行器的这台机器</strong>上 —— 如果你是从别的设备连过来的，请到那台机器上完成登录。</p>` +
+      '<p class="help-line">登录窗口是<strong>留给你自己操作</strong>的：这边不会替你去试，也不会去刷上游。' +
+      "登录完（或换了登录方式）再回来点下面的按钮，我们才去取凭据。" +
+      `${s.timeout_seconds ? `窗口最多开 ${Math.round(s.timeout_seconds / 60)} 分钟，之后自动关闭。` : ""}</p>` +
+      `<p class="help-line">窗口在<strong>运行执行器的这台机器</strong>上${s.waited_seconds ? `（已开 ${s.waited_seconds} 秒）` : ""} —— 从别的设备连过来的话，请到那台机器上操作。</p>` +
       '<button id="connect-finish" class="full">我已登录，取走凭据</button>' +
       '<button id="connect-cancel" class="full">取消并关闭窗口</button>';
   } else {
@@ -201,16 +204,21 @@ function dialogConnect() {
   $("connect-finish")?.addEventListener("click", safe(() => connectAction("finish")));
   $("connect-cancel")?.addEventListener("click", safe(() => connectAction("cancel")));
 }
-async function pollConnect() {
+// 状态签名：只在这些字段变化时才重绘对话框（不然每 2 秒一次 DOM 重建会让它看起来在闪）
+function connectSignature(s) {
+  return s ? [s.state, s.session, s.notice || "", s.error || ""].join("|") : "";
+}
+async function pollConnect(force) {
+  const before = connectSignature(connectFlow.state);
   try { connectFlow.state = await api("/api/studio/session"); }
   catch (e) { connectFlow.state = { state: "unavailable", error: String(e.message || e).slice(0, 200) }; }
-  dialogConnect();
+  if (force || connectSignature(connectFlow.state) !== before) dialogConnect();
 }
 async function openConnectDialog() {
   connectFlow.state = null;
   modal("连接网页订阅", '<p class="help-line">正在读取状态…</p>');
-  await pollConnect();
-  if (!connectFlow.timer) connectFlow.timer = setInterval(() => pollConnect().catch(() => {}), 2000);
+  await pollConnect(true);
+  if (!connectFlow.timer) connectFlow.timer = setInterval(() => pollConnect(false).catch(() => {}), 3000);
 }
 async function connectAction(action) {
   const buttons = ["connect-start", "connect-finish", "connect-cancel"].map(id => $(id)).filter(Boolean);
