@@ -27,7 +27,12 @@ async function tokenize(cookies,proxy){
   try{
     let response;
     try{response=await cookieClient.get(WHOAMI,{maxRetries:0,maxRedirects:0});}
-    catch{return {ok:false,reason:'连不上上游（网络或代理不通）'};}
+    catch{
+      // 没配代理时把话说清楚：很多环境下上游是直连不到的
+      return {ok:false,reason:proxy
+        ? '连不上上游（网络或代理不通）'
+        : '连不上上游（当前是直连；若你的网络需要代理，请设置 STUDIO_PROXY 后重试）'};
+    }
     const body=await response.json().catch(()=>({}));
     if(!response.ok()||!body.tokenized)return {ok:false,reason:`登录已失效（HTTP ${response.status()}）`};
     let expires=null;
