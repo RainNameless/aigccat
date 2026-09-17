@@ -189,6 +189,9 @@ python3 scripts/opencode-runner/install-host.py
 **不要把工作器当会话后台任务启动**——会话清理会带走进程，界面会显示"不可达"。
 `kickstart` 前若端口被旧进程占用，需先 kill 真实 PID，否则新进程立即 `exited`。
 
+**Studio 执行器需要先接入你自己的网页订阅会话**（用你自己的账号与积分），
+四步接入、验证方法与排查见 **[接入你自己的网页订阅会话](STUDIO-SESSION.md)**。
+
 Linux 上用 systemd 托管等价的常驻单元即可。
 
 ---

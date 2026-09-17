@@ -159,6 +159,9 @@ docker compose -p aigccat -f docker-compose.yml up -d --build
 
 完整步骤、宿主工作器、公网部署、常见问题见 **[部署指南](docs/DEPLOYMENT.md)**。
 
+> 想用「网页订阅」真的跑出模型（消耗你自己账号的积分）？这条链路需要在你自己的机器上接一次会话：
+> **[接入你自己的网页订阅会话](docs/STUDIO-SESSION.md)**。
+
 ## 未接入 / 未验收（如实标注）
 
 - Tripo **API** 建模链路代码就绪，但因账户余额为 0 **从未完成真实验收**；实际产出全部来自 Studio 网页订阅链路

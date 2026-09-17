@@ -1,32 +1,139 @@
 # coding: utf-8
-"""Install the session worker as a persistent macOS user service (no browser)."""
-import os,plistlib,shutil,subprocess
+"""把网页订阅执行器装成常驻的 macOS 用户服务（不启动供应商浏览器）。
+
+首次安装前必须先连接会话（一次即可）：
+    node scripts/studio-runner/connect-session.cjs
+
+再执行：
+    python3 scripts/studio-runner/install.py
+
+可选：
+    NODE_BIN=/path/to/node  指定运行时（默认优先用 node@22，其次 PATH 里的 node）
+    --force                 执行器正在跑任务时也强制重启（会打断任务，积分不退）
+"""
+import json,os,plistlib,re,secrets,shutil,subprocess,sys,time,urllib.request
 from pathlib import Path
+
+FILES=('export-generated.cjs','client.cjs','proxy.cjs','process.cjs','server.cjs','normalize.cjs','preview.cjs','package.json','package-lock.json')
 root=Path(__file__).resolve().parents[2]
+source=root/'scripts/studio-runner'
 runtime=Path.home()/'Library/Application Support/aigccat/studio-worker'
+
+# ── 1. 前置检查：缺什么就说清楚缺什么，不要等 launchd 起来才失败 ──
+node=shutil.which('node')
+if not node:
+    raise SystemExit('找不到 node。请先安装 Node.js 22 或更高版本（https://nodejs.org），再重试。')
+if not (source/'node_modules').is_dir():
+    raise SystemExit('缺少依赖。先执行：\n  cd scripts/studio-runner && npm install')
+
+private_src=root/'.ai/browser-state'
+private_src.mkdir(parents=True,exist_ok=True)
+session_src=private_src/'studio-session.auth.json'
+if not session_src.exists():
+    raise SystemExit(
+        '还没有 Studio 登录会话，安装会失败（执行器没有凭据可用）。\n'
+        '先连接你自己的订阅账号（会打开浏览器，登录一次即可）：\n'
+        '  node scripts/studio-runner/connect-session.cjs\n'
+        '凭据只写到本机 .ai/browser-state/ 下，该目录已在 .gitignore 中，不会入库。')
+
+# 执行器令牌：缺失就生成。后端用 STUDIO_WORKER_TOKEN 调它，两边必须一致。
+token_src=private_src/'studio-runner-token'
+generated_token=None
+if not token_src.exists():
+    generated_token=secrets.token_hex(32)
+    token_src.write_text(generated_token+'\n',encoding='utf-8')
+    token_src.chmod(0o600)
+token_value=token_src.read_text(encoding='utf-8').strip()
+
+env_note=[]
+env_file=root/'.env'
+if env_file.exists():
+    text=env_file.read_text(encoding='utf-8')
+    if re.search(r'^STUDIO_WORKER_TOKEN=[ \t]*$',text,re.M):
+        env_file.write_text(re.sub(r'^STUDIO_WORKER_TOKEN=[ \t]*$','STUDIO_WORKER_TOKEN='+token_value,text,count=1,flags=re.M),encoding='utf-8')
+        env_note.append('已把令牌写入 .env 的 STUDIO_WORKER_TOKEN')
+    elif re.search(r'^STUDIO_WORKER_TOKEN=',text,re.M):
+        current=re.search(r'^STUDIO_WORKER_TOKEN=(.*)$',text,re.M).group(1).strip()
+        if current!=token_value: env_note.append('注意：.env 里的 STUDIO_WORKER_TOKEN 与执行器令牌不一致，需要改成同一个值')
+    else:
+        sep='' if (not text or text.endswith('\n')) else '\n'
+        env_file.write_text(text+sep+'STUDIO_WORKER_TOKEN='+token_value+'\n',encoding='utf-8')
+        env_note.append('已把 STUDIO_WORKER_TOKEN 追加到 .env')
+else:
+    env_note.append('没有 .env：容器启动前请自行设置 STUDIO_WORKER_TOKEN='+token_value)
+
+# ── 2. 拷贝代码与私有文件到运行目录 ──
 runtime.mkdir(parents=True,exist_ok=True);runtime.chmod(0o700)
-for name in ('export-generated.cjs','client.cjs','process.cjs','server.cjs','normalize.cjs','preview.cjs','package.json','package-lock.json'):
- shutil.copy2(root/'scripts/studio-runner'/name,runtime/name)
-shutil.copytree(root/'scripts/studio-runner/node_modules',runtime/'node_modules',dirs_exist_ok=True)
+for name in FILES:
+    shutil.copy2(source/name,runtime/name)
+shutil.copytree(source/'node_modules',runtime/'node_modules',dirs_exist_ok=True)
 private=runtime/'.ai/browser-state';private.mkdir(parents=True,exist_ok=True);private.chmod(0o700)
 for name in ('studio-session.auth.json','studio-runner-token'):
- shutil.copy2(root/'.ai/browser-state'/name,private/name);(private/name).chmod(0o600)
+    shutil.copy2(private_src/name,private/name);(private/name).chmod(0o600)
+
+# ── 3. 选一个确定的 node：优先显式指定，其次 node@22（本项目长期验证的运行时），
+#      最后才用 PATH 里碰到的任意 node —— 免得某台机器上装了新版 node 就把服务换到未验证的运行时。
+def pick_node():
+    if os.environ.get('NODE_BIN'):
+        return os.environ['NODE_BIN']
+    pinned=Path('/opt/homebrew/opt/node@22/bin/node')
+    if pinned.exists():
+        return str(pinned)
+    found=shutil.which('node')
+    if not found:
+        raise SystemExit('找不到 node。请安装 Node.js 22 或更高版本（https://nodejs.org），或用 NODE_BIN=/path/to/node 指定。')
+    return found
+node=Path(pick_node()).resolve()
+print(f'  使用 node：{node}')
+
+# ── 4. 正在跑任务时不要重启：已消耗的积分不会退回 ──
 label='cn.aigccat.studio-worker';domain=f'gui/{os.getuid()}'
+def health():
+    req=urllib.request.Request('http://127.0.0.1:8790/health',headers={'Authorization':'Bearer '+token_value})
+    with urllib.request.urlopen(req,timeout=5) as response:
+        return json.load(response)
+active=None
+try:
+    active=health().get('active')
+except Exception:
+    pass
+if active and '--force' not in sys.argv:
+    raise SystemExit(
+        f'执行器正在执行任务（{active}），重启会打断它，且已消耗的积分不会退回。\n'
+        '等它跑完再装，或者确认要打断就加 --force。')
+
+# ── 5. 注册并启动 ──
 loaded=subprocess.run(['launchctl','print',f'{domain}/{label}'],capture_output=True).returncode==0
-node=Path(shutil.which('node')).resolve()
-plist={'Label':label,'ProgramArguments':[str(node),str(runtime/'server.cjs')],'WorkingDirectory':str(runtime),'EnvironmentVariables':{'STUDIO_ROOT':str(runtime)},'RunAtLoad':True,'KeepAlive':True,'StandardOutPath':str(private/'worker.log'),'StandardErrorPath':str(private/'error.log')}
+env={'STUDIO_ROOT':str(runtime)}
+# 代理只在显式设置时写进服务环境，避免把某台机器上的私有代理端口固化给别人
+if os.environ.get('STUDIO_PROXY') is not None:
+    env['STUDIO_PROXY']=os.environ['STUDIO_PROXY']
+plist={'Label':label,'ProgramArguments':[str(node),str(runtime/'server.cjs')],'WorkingDirectory':str(runtime),'EnvironmentVariables':env,'RunAtLoad':True,'KeepAlive':True,'StandardOutPath':str(private/'worker.log'),'StandardErrorPath':str(private/'error.log')}
 p=Path.home()/'Library/LaunchAgents'/f'{label}.plist';p.write_bytes(plistlib.dumps(plist))
 subprocess.run(['launchctl','kickstart','-k',f'{domain}/{label}'] if loaded else ['launchctl','bootstrap',domain,str(p)],check=True)
-print('Studio worker installed in Application Support; login data private; no browser launched')
 
-# Wait for launchd to finish restarting before the caller can submit work.
-import time, urllib.request
+# ── 5. 等它就绪，并把结果讲清楚 ──
 for attempt in range(20):
- try:
-  req=urllib.request.Request('http://127.0.0.1:8790/health',headers={'Authorization':'Bearer '+(private/'studio-runner-token').read_text().strip()})
-  with urllib.request.urlopen(req,timeout=10) as response:
-   if response.status==200:break
- except Exception:
-  if attempt==19:raise SystemExit('Worker did not become ready; check the private service log')
-  time.sleep(1)
-print('Studio worker health verified')
+    try:
+        if health():
+            break
+    except Exception:
+        if attempt==19:
+            raise SystemExit(f'执行器没有就绪，看日志： {private/"error.log"}')
+        time.sleep(1)
+
+print('Studio worker installed in Application Support; login data private; no browser launched')
+print('')
+print('  执行器已就绪：http://127.0.0.1:8790')
+print(f'  运行副本：{runtime}')
+print(f'  私有目录（登录态与令牌，权限 600）：{private}')
+if generated_token:
+    print('')
+    print(f'  已生成执行器令牌：{token_src}')
+    print(f'    STUDIO_WORKER_TOKEN={generated_token}')
+for note in env_note:
+    print(f'  {note}')
+print('')
+print('  记着让容器重新读取环境变量：')
+print('    docker compose -f docker-compose.allinone.yml up -d      # 单容器')
+print('    docker compose -p aigccat -f docker-compose.yml up -d   # 多容器')

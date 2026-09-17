@@ -164,6 +164,10 @@ docker compose -p aigccat -f docker-compose.yml up -d --build
 
 For host workers, public deployment and troubleshooting, see the **[Deployment Guide](docs/DEPLOYMENT.md)**.
 
+> Want the "web subscription" path to actually produce models (spending your own account's credits)?
+> That path needs a one-time session connection on your own machine:
+> **[Connecting your own web-subscription session](docs/STUDIO-SESSION.md)**.
+
 ## Not implemented / not verified (stated honestly)
 
 - The Tripo **API** path exists but was **never verified end to end** — the account balance was 0. Everything actually produced came through the Studio web-subscription path
