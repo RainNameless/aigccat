@@ -189,7 +189,13 @@ docker compose -p aigccat -f docker-compose.yml up -d --no-deps --no-build --pul
 
 - 你想用宿主上已经装好的 Blender（版本更新，或想共用同一份）
 - 你在跑多容器版（`docker-compose.yml`）—— 它没有把 Blender 打进镜像
-- 你要跑 Studio 网页订阅链路 —— 那个执行器**必须**在宿主上（见本节末尾）
+
+> ⚠ **arm64（Apple Silicon）镜像不含 Blender**：Blender 官方只发布 Linux x64，
+> 没有 Linux arm64 构建。想要容器内自带 Blender，让 Docker 跑 **amd64** 那份镜像即可：
+> Apple Silicon 上先在 Docker Desktop 打开 Rosetta 模拟（Settings → General 里那个
+> "Use Rosetta for x86-64/amd64 emulation"），然后
+> `DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f docker-compose.allinone.yml up -d`。
+> **x86 的 Windows / Linux 服务器拉到的本来就是 amd64 那份，原生运行，什么都不用配。**
 
 用宿主 Blender 覆盖容器内的默认（两个都要给，否则只会换掉一半）：
 
@@ -199,7 +205,7 @@ RIG_HOST_URL=http://host.docker.internal:8791 \
   docker compose -f docker-compose.allinone.yml up -d
 ```
 
-宿主上启动 Blender 工作器（macOS，launchd 常驻、开机自启）：
+这样就得自己在宿主上把 Blender 工作器与绑骨桥跑起来。macOS 上历史做法是 launchd 常驻：
 
 ```bash
 launchctl kickstart -k gui/$(id -u)/cn.aigccat.blender-worker
@@ -207,27 +213,20 @@ launchctl kickstart -k gui/$(id -u)/cn.aigccat.blender-worker
 
 **不要把工作器当会话后台任务启动** —— 会话清理会带走进程，界面会显示"不可达"。
 `kickstart` 前若端口被旧进程占用，需先 kill 真实 PID，否则新进程立即 `exited`。
+不想再用宿主这份时，`python3 scripts/opencode-runner/install-host.py` 会把绑骨桥清退掉。
 
-多容器版的 AI 绑骨需要额外起宿主桥接：
+### 网页订阅的登录窗口：也在容器里，宿主机不需要装东西
 
-```bash
-docker compose -p aigccat -f docker-compose.yml build opencode
-docker compose -p aigccat -f docker-compose.yml up -d --no-deps --no-build --pull never opencode
-python3 scripts/opencode-runner/install-host.py
-```
+早期版本要求先在宿主上装一个常驻执行器，因为「容器没屏幕，弹不出浏览器窗口」。
+**这个限制已经不存在了**：单容器镜像内置了 Xvfb 虚拟屏幕 + Chromium + noVNC，
+登录窗口是**网页里内嵌的一幅画面**（网关转发，复用 8080 端口，受现有登录鉴权保护）。
 
-### Studio 订阅执行器（唯一必须在宿主的）
+所以不需要执行任何安装命令 —— 起好容器，等界面出现 **「连接网页订阅」**，
+点【打开登录窗口】直接在里面登录即可。
 
-它要弹出一个真人操作的浏览器窗口，而容器里没有屏幕，物理上放不进去：
-
-```bash
-python3 scripts/studio-runner/install.py
-```
-
-**需要先接入你自己的网页订阅会话**（用你自己的账号与积分），
-四步接入、验证方法与排查见 **[接入你自己的网页订阅会话](STUDIO-SESSION.md)**。
-
-Linux 上用 systemd 托管等价的常驻单元即可。
+> 如果你以前装过宿主执行器（macOS 的 `cn.aigccat.studio-worker`），
+> 跑 `python3 scripts/studio-runner/install.py` 会把旧的清退掉。
+> 接入步骤与排查见 **[接入你自己的网页订阅会话](STUDIO-SESSION.md)**。
 
 ---
 
