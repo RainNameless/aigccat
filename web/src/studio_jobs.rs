@@ -9,7 +9,10 @@ type ResultApi=Result<(StatusCode,Json<Value>),(StatusCode,String)>;
 fn error(e:impl Into<String>)->(StatusCode,String){(StatusCode::BAD_REQUEST,e.into())}
 struct Worker{http:reqwest::Client,url:String,token:String}
 impl Worker{
- fn new()->Result<Self,String>{Ok(Self{http:reqwest::Client::builder().timeout(Duration::from_secs(180)).build().map_err(|_|"执行器客户端初始化失败")?,url:std::env::var("STUDIO_WORKER_URL").unwrap_or("http://host.docker.internal:8790".into()),token:std::env::var("STUDIO_WORKER_TOKEN").map_err(|_|"Studio 执行器未配置")?})}
+ fn new()->Result<Self,String>{Self::with_timeout(180)}
+ // 状态探测要用短超时：上游不通时 /health 会一直挂着，而界面每 30 秒就要问一次状态，
+ // 不能让探测把界面拖住（实测上游不可达时 /health 会卡到两分钟）。
+ fn with_timeout(secs:u64)->Result<Self,String>{Ok(Self{http:reqwest::Client::builder().timeout(Duration::from_secs(secs)).build().map_err(|_|"执行器客户端初始化失败")?,url:std::env::var("STUDIO_WORKER_URL").unwrap_or("http://host.docker.internal:8790".into()),token:std::env::var("STUDIO_WORKER_TOKEN").map_err(|_|"Studio 执行器未配置")?})}
  async fn call(&self,path:&str,body:Option<Value>)->Result<Value,String>{
   let r=if let Some(v)=body{self.http.post(format!("{}{path}",self.url)).json(&v)}else{self.http.get(format!("{}{path}",self.url))}.bearer_auth(&self.token).send().await.map_err(|e| if e.is_connect(){"Studio 执行器未建立连接，未提交生成"}else{"Studio 后台连接中断；请查询原任务，不会自动重新生成"})?;
   let status=r.status();let v:Value=r.json().await.map_err(|_|"执行器响应格式无效")?;
@@ -22,12 +25,12 @@ impl Worker{
  }
 }
 pub async fn health()->Json<Value>{
- let result=async{Worker::new()?.call("/health",None).await}.await;
+ let result=async{Worker::with_timeout(20)?.call("/health",None).await}.await;
  Json(match result{Ok(v)=>v,Err(e)=>json!({"ready":false,"error":e})})
 }
 // 会话接入的界面入口：转发给宿主执行器。执行器负责开浏览器、抓 cookie、落盘。
 pub async fn session_state()->Json<Value>{
- let result=async{Worker::new()?.call("/session",None).await}.await;
+ let result=async{Worker::with_timeout(20)?.call("/session",None).await}.await;
  Json(match result{Ok(v)=>v,Err(e)=>json!({"state":"unavailable","error":e})})
 }
 pub async fn session_action(Json(body):Json<Value>)->ResultApi{
@@ -35,7 +38,8 @@ pub async fn session_action(Json(body):Json<Value>)->ResultApi{
   "start"=>"/session/start","finish"=>"/session/finish","cancel"=>"/session/cancel",
   _=>return Err(error("未知操作")),
  };
- let worker=Worker::new().map_err(|e| error(e))?;
+ // 动作给足时间：开浏览器、以及校验时会去问一次上游
+ let worker=Worker::with_timeout(90).map_err(|e| error(e))?;
  match worker.call(path,Some(json!({}))).await{Ok(v)=>Ok((StatusCode::OK,Json(v))),Err(e)=>Err(error(e))}
 }
 pub fn validate(req:&Generate)->Result<(),String>{
