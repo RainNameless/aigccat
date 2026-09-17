@@ -279,6 +279,11 @@ process.on('SIGINT',  () => shutdown(0, 'SIGINT'));
 /* ─────────── 5. 主流程 ─────────── */
 log(`aigccat 单容器启动，数据目录 ${DATA}`);
 
+// ⚠ 必须在启动 gateway 之前判定账号库是否为空。
+// gateway 启动时会 bootstrap 建号并创建 accounts.json，若把判定放在它启动之后，
+// 结果恒为「已有账号库」—— 首次部署的人就永远看不到初始密码（只能去 /data/aigccat.env 翻）。
+const freshAccounts = FIRST_BOOT && !fs.existsSync(path.join(DIR.authData, 'accounts.json'));
+
 // 必须按依赖顺序串起来起：minio → web → gateway。
 // web 启动时会调 ensure_bucket() 建 bucket，只跑一次；如果 minio 还没就绪，
 // 建桶会失败并且不会重试 —— 表现为「能用但一存资产就报 NoSuchBucket」。
@@ -302,10 +307,10 @@ launch(byName('opencode'));
 
 if (FIRST_BOOT) {
   fs.writeFileSync(path.join(DATA, '.initialized'), new Date().toISOString() + '\n');
-  // 只有当账号库确实是空的（网关会走 bootstrap 建号）时，才打印初始账号密码。
+  // freshAccounts 已在启动 gateway 之前算好（见上方主流程开头）：
+  // 只有账号库确实是空的（gateway 会走 bootstrap 建号）才打印初始账号密码。
   // 否则（典型场景：数据卷是从多容器版迁移过来的）会打印一个根本没生效的随机密码，
   // 让人以为登录密码被改了。
-  const freshAccounts = !fs.existsSync(path.join(DIR.authData, 'accounts.json'));
   console.log('');
   console.log('  ────────────────────────────────────────────────');
   console.log('   aigccat 已就绪');
