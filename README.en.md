@@ -14,29 +14,6 @@ aigccat is a **self-hosted AI 3D asset pipeline**: generate models from text or 
 
 It is not a "look, it makes a model" demo. It exists to solve the unglamorous problems of real game projects: every NPC ends up with the same face, a small tweak forces a full regeneration, materials turn magenta after export, a cleanup script deletes a published asset, API costs are invisible, and reviewers are asked to approve from a single image.
 
-## First, our situation: we're looking for sponsors
-
-To be blunt — **this project currently runs entirely on one personal computer.** No server, and **not a
-single paid credit on any generation platform.**
-
-As a result, only the Tripo subscription path has ever produced real models. Every other platform
-(Meshy, Rodin, Hunyuan3D, TRELLIS 2, Hi3D) **has never had a single real call paid for**, and stays
-listed as "not integrated". We have one hard rule: **if it hasn't run, we don't write "supported"** —
-so credits aren't a nice-to-have for us, they're the difference between shipping a feature and not.
-
-Any of these helps:
-
-| What we need | Specifically | Used for |
-|---|---|---|
-| **API credits / keys** | official API credits for Meshy, Rodin (Hyper3D), Hunyuan3D, Hi3D | finishing and actually testing those integrations |
-| **TRELLIS 2 run credits** | pay-per-run cloud credits (e.g. Replicate / fal.ai, ≈$0.82 per run) | it has no first-party SaaS, so we'd call it via cloud |
-| **A server** | a small always-on box or VPS (**no GPU needed**) | **hosting an online preview environment** so people can try it without installing anything |
-| **Subscriptions** | plans on the above platforms that include API credits | same as the first item |
-
-Details, boundaries and our commitments: **[Sponsorship & Platform Integration](docs/SPONSORSHIP.md)**.
-Say hi in the **[Telegram community](https://t.me/aigccat)** — even a few dozen generations or an idle
-little server genuinely helps.
-
 ## Screenshots
 
 ### Workbench
@@ -133,6 +110,29 @@ browser ──► gateway :8080   (the only exposed port; unified auth)
 - **Storage**: MinIO (S3-compatible). Object keys are path-shaped and map 1:1 onto a local filesystem
 - **Workers**: Blender-related capabilities run on the host; containers only orchestrate
 
+## First, our situation: we're looking for sponsors
+
+To be blunt — **this project currently runs entirely on one personal computer.** No server, and **not a
+single paid credit on any generation platform.**
+
+As a result, only the Tripo subscription path has ever produced real models. Every other platform
+(Meshy, Rodin, Hunyuan3D, TRELLIS 2, Hi3D) **has never had a single real call paid for**, and stays
+listed as "not integrated". We have one hard rule: **if it hasn't run, we don't write "supported"** —
+so credits aren't a nice-to-have for us, they're the difference between shipping a feature and not.
+
+Any of these helps:
+
+| What we need | Specifically | Used for |
+|---|---|---|
+| **API credits / keys** | official API credits for Meshy, Rodin (Hyper3D), Hunyuan3D, Hi3D | finishing and actually testing those integrations |
+| **TRELLIS 2 run credits** | pay-per-run cloud credits (e.g. Replicate / fal.ai, ≈$0.82 per run) | it has no first-party SaaS, so we'd call it via cloud |
+| **A server** | a small always-on box or VPS (**no GPU needed**) | **hosting an online preview environment** so people can try it without installing anything |
+| **Subscriptions** | plans on the above platforms that include API credits | same as the first item |
+
+Details, boundaries and our commitments: **[Sponsorship & Platform Integration](docs/SPONSORSHIP.md)**.
+Say hi in the **[Telegram community](https://t.me/aigccat)** — even a few dozen generations or an idle
+little server genuinely helps.
+
 ## Quick start
 
 **Option A · single container (recommended, no build required)**
@@ -174,7 +174,7 @@ For host workers, public deployment and troubleshooting, see the **[Deployment G
 **Other generation platforms are not integrated at all**: Meshy, Rodin / Hyper3D, Hunyuan3D,
 TRELLIS 2, Hi3D. The provider layer is built to be pluggable, but we have not been able to pay for a
 single real call on any of them — and without real calls we don't write "supported".
-We're looking for sponsors, see the top of this file.
+We're looking for sponsors, see the section above.
 
 ## Known limitations
 
