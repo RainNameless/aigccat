@@ -3,8 +3,7 @@ const fs=require('node:fs/promises');
 const crypto=require('node:crypto');
 const path=require('node:path');
 const {resolveProxy}=require('./proxy.cjs');
-const ROOT=process.env.STUDIO_ROOT||path.resolve(__dirname,'../..');
-const SESSION=process.env.STUDIO_SESSION_FILE||path.join(ROOT,'.ai/browser-state/studio-session.auth.json');
+const {ROOT,SESSION_FILE:SESSION}=require('./state.cjs');
 class StudioError extends Error { constructor(message,confirmed=false){super(message);this.confirmed=confirmed;} }
 async function client(){
  // 代理按需决定：显式 STUDIO_PROXY 优先，未设置时只在本机确有代理监听才用（见 proxy.cjs）

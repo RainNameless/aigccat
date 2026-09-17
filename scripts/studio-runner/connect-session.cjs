@@ -61,14 +61,16 @@ function nextSteps(token){
   console.log('');
   console.log('  下一步：');
   if(token){
-    console.log('    1) 把执行器令牌写进仓库根目录的 .env（后端要用它调用本机执行器）：');
+    console.log('    1) 把执行器令牌写进仓库根目录的 .env（后端要用它调用容器内的执行器）：');
     console.log(`         STUDIO_WORKER_TOKEN=${token}`);
   }else{
     console.log(`    1) 确认 .env 里的 STUDIO_WORKER_TOKEN 与这个文件一致：${TOKEN_FILE}`);
   }
-  console.log('    2) 安装/重启常驻执行器： python3 scripts/studio-runner/install.py');
-  console.log('    3) 让容器重新读取环境变量： docker compose -f docker-compose.allinone.yml up -d');
-  console.log('    4) 打开工作台的「模型构建」，服务状态应显示「网页订阅 · 已连接」');
+  console.log('    2) 让容器重新读取环境变量： docker compose -f docker-compose.allinone.yml up -d');
+  console.log('    3) 打开工作台的「模型构建」，服务状态应显示「网页订阅 · 已连接」');
+  console.log('');
+  console.log('  提示：单容器版里登录窗口就在网页上（容器内自带浏览器 + VNC），');
+  console.log('        通常不需要跑这个命令行工具 —— 界面里点「打开登录窗口」即可。');
   console.log('');
 }
 

@@ -11,6 +11,7 @@
 // 本文件同时负责：目录与软链自举、启动顺序与就绪等待、崩溃重启、日志前缀、优雅退出。
 
 import {spawn} from 'node:child_process';
+import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -34,6 +35,7 @@ const DIR = {
   config:   path.join(DATA, 'config'),
   opencode: path.join(DATA, 'opencode'),
   tasks:    path.join(DATA, 'opencode-tasks'),
+  studio:   path.join(DATA, 'studio'),
 };
 for (const d of Object.values(DIR)) fs.mkdirSync(d, {recursive: true});
 
@@ -83,6 +85,8 @@ const MINIO_PASS = secret('MINIO_ROOT_PASSWORD');
 const RIG_TOKEN  = secret('RIG_AGENT_TOKEN');
 const ADMIN_USER = process.env.AIGCCAT_ADMIN_USER || 'admin';
 const ADMIN_PASS = secret('AIGCCAT_ADMIN_PASSWORD', 9);
+// 会话执行器与后端之间的共享令牌。两边必须一致，所以由这里生成一处、同时发给两个进程。
+const STUDIO_TOKEN = secret('STUDIO_WORKER_TOKEN');
 
 // gateway 从文件读令牌，保持与原多容器部署一致
 for (const [file, value] of [['proxy.token', secret('AIGCCAT_PROXY_TOKEN')], ['automation.token', secret('AIGCCAT_AUTOMATION_TOKEN')]]) {
@@ -105,8 +109,33 @@ const BLENDER_URL = process.env.BLENDER_WORKER_URL
 const RIG_URL = process.env.RIG_HOST_URL
   || (HAS_LOCAL_BLENDER ? 'http://127.0.0.1:8791' : 'http://host.docker.internal:8791');
 
+// 登录窗口要访问被墙的上游，容器只能借宿主上的代理出去。
+// 只在启动时探一次「host.docker.internal:7897 通不通」，把结论明确写进日志；
+// 探不通就当直连（用户网络本来不需要代理时这是对的）。显式 STUDIO_PROXY 永远优先。
+const HOST_PROXY = 'http://host.docker.internal:7897';
+async function portOpen(host, port, timeoutMs = 800) {
+  return new Promise((resolve) => {
+    const sock = net.connect({host, port});
+    const done = (ok) => { try { sock.destroy(); } catch {} resolve(ok); };
+    sock.setTimeout(timeoutMs);
+    sock.once('connect', () => done(true));
+    sock.once('timeout', () => done(false));
+    sock.once('error', () => done(false));
+  });
+}
+let STUDIO_PROXY = process.env.STUDIO_PROXY || '';
+if (!STUDIO_PROXY && await portOpen('host.docker.internal', 7897)) STUDIO_PROXY = HOST_PROXY;
+
 const WEB_PORT = 8081;   // 只在容器内回环，对外只有 gateway 的 8080
 const WEB = `http://127.0.0.1:${WEB_PORT}`;
+
+/* 网页订阅的登录窗口：容器内自己造一块虚拟屏幕 + 一个真浏览器 + VNC。
+   原来是让宿主机弹窗口，于是宿主机上必须常驻一个执行器进程 —— 现在整条链路都在容器里。 */
+const DISPLAY = process.env.DISPLAY || ':99';
+const VNC_PORT = 5900;      // x11vnc 的 RFB 端口，只在容器内回环
+const NOVNC_PORT = 6081;    // websockify 的 HTTP/WS 端口，由 gateway 转发出去
+const STUDIO_PORT = 8790;
+const STUDIO_URL = `http://127.0.0.1:${STUDIO_PORT}`;
 
 /* ─────────── 3. 进程定义 ─────────── */
 const children = [
@@ -147,6 +176,49 @@ const children = [
     ready: {url: 'http://127.0.0.1:8791/health', label: '绑骨桥就绪'},
   },
   {
+    // 虚拟屏幕。容器没有物理显示器，而登录窗口必须是一个「有头」浏览器
+    // （headless 会被 Cloudflare 识破），所以先造一块屏幕出来。
+    name: 'xvfb', critical: false,
+    cmd: '/usr/bin/Xvfb',
+    args: [DISPLAY, '-screen', '0', '1440x900x24', '-nolisten', 'tcp'],
+    label: '虚拟屏幕',
+    // Xvfb 起的标志是这块 socket 出现；不这样等的话 x11vnc 会先起然后失败重试
+    readyFile: `/tmp/.X11-unix/X${DISPLAY.replace(':', '')}`,
+  },
+  {
+    // 把虚拟屏幕导出成 VNC。只在容器内回环监听，不对外。
+    name: 'x11vnc', critical: false,
+    cmd: '/usr/bin/x11vnc',
+    args: ['-display', DISPLAY, '-rfbport', String(VNC_PORT), '-localhost',
+           '-forever', '-shared', '-nopw', '-quiet', '-noxdamage'],
+  },
+  {
+    // noVNC：把 VNC 转成浏览器能看的 HTTP + WebSocket。
+    // 它自己连不连得上 x11vnc 无所谓（有客户端连进来时才建链），所以不等就绪。
+    name: 'novnc', critical: false,
+    cmd: '/usr/bin/websockify',
+    args: ['--web=/usr/share/novnc', String(NOVNC_PORT), `127.0.0.1:${VNC_PORT}`],
+    ready: {url: `http://127.0.0.1:${NOVNC_PORT}/vnc.html`, label: '登录画面就绪', anyStatus: true},
+  },
+  {
+    // 会话执行器（原来是宿主机上的 launchd 服务 8790）。
+    // 它按需拉起上面那块屏幕里的浏览器，让用户在网页内嵌的画面里自己登录。
+    name: 'studio', critical: false,
+    cmd: process.execPath,
+    args: ['/srv/studio-runner/server.cjs'],
+    cwd: '/srv/studio-runner',
+    env: {
+      ...process.env,
+      DISPLAY,
+      STUDIO_WORKER_TOKEN: STUDIO_TOKEN,
+      STUDIO_STATE_DIR: DIR.studio,
+      // 显式传入（空串=直连）：把「走不走代理」这件事固定下来，不让下游再去猜
+      STUDIO_PROXY,
+    },
+    // 401 也算活着：/session 需要鉴权，但能应答就说明进程没问题
+    ready: {url: `${STUDIO_URL}/session`, label: '会话执行器就绪', anyStatus: true},
+  },
+  {
     name: 'web', critical: true,
     cmd: '/srv/aigccat-web',
     // 必须从 /srv 启动：main.rs 里是 ServeDir::new("static")（相对路径），
@@ -164,7 +236,9 @@ const children = [
       RIG_AGENT_TOKEN: RIG_TOKEN,
       SERVICES_PUBLIC_ORIGIN: process.env.AUTH_ORIGIN || '',
       BLENDER_WORKER_URL: BLENDER_URL,
-      STUDIO_WORKER_URL: process.env.STUDIO_WORKER_URL || 'http://host.docker.internal:8790',
+      // 执行器就在同一个容器里（原来是宿主机上的 8790）
+      STUDIO_WORKER_URL: process.env.STUDIO_WORKER_URL || STUDIO_URL,
+      STUDIO_WORKER_TOKEN: STUDIO_TOKEN,
     },
     ready: {url: `${WEB}/api/assets`, label: '后端就绪', anyStatus: true},
   },
@@ -180,6 +254,9 @@ const children = [
       AUTH_ORIGIN: process.env.AUTH_ORIGIN || '',
       AUTH_BOOTSTRAP_USER: ADMIN_USER,
       AUTH_BOOTSTRAP_PASSWORD: ADMIN_PASS,
+      // 登录画面（noVNC）的转发目标：gateway 把 /studio/vnc/* 转到这里，
+      // 于是「看登录窗口」不用再对外多开一个端口，也天然受现有登录鉴权保护。
+      NOVNC_UPSTREAM: `http://127.0.0.1:${NOVNC_PORT}`,
     },
     ready: {url: 'http://127.0.0.1:8080/login.html', label: '入口就绪'},
   },
@@ -249,6 +326,17 @@ function launch(def) {
 }
 
 async function waitReady(def, timeoutMs = 120_000) {
+  // 有些进程没有 HTTP 端口可探（典型：Xvfb），就用「某个文件出现」当就绪信号。
+  if (def.readyFile) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      if (stopping) return;
+      if (fs.existsSync(def.readyFile)) { log(`${def.label || def.name} 就绪（${def.name}）`); return; }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    warn(`${def.name} 在 ${Math.round(timeoutMs / 1000)} 秒内未就绪，继续启动其余组件`);
+    return;
+  }
   if (!def.ready) return;
   const started = Date.now();
   const {url, label, anyStatus} = def.ready;
@@ -291,10 +379,16 @@ const byName = (n) => children.find((c) => c.name === n);
 // Blender 工作器与绑骨桥只在「镜像自带 Blender」时启动；没有就跳过，由宿主那份顶上。
 const order = ['minio'];
 if (HAS_LOCAL_BLENDER) order.push('blender', 'rig-bridge');
-order.push('web', 'gateway');
+// 登录窗口整条链路都在容器里：虚拟屏幕 → VNC → noVNC → 会话执行器
+order.push('xvfb', 'x11vnc', 'novnc', 'studio', 'web', 'gateway');
 log(HAS_LOCAL_BLENDER
   ? `容器自带 Blender（${LOCAL_BLENDER}），减面/重拓扑/绑骨在容器内执行`
-  : '容器内没有 Blender（该架构无官方构建），改用宿主机上的 —— 请确保宿主 Blender 工作器在跑');
+  : '本架构没有官方 Blender 构建（Blender 只发布 Linux x64），减面/重拓扑/绑骨不可用；'
+    + '其余功能不受影响。若你在别处跑了 Blender 工作器，可用 BLENDER_WORKER_URL 指过去。');
+// 执行器从文件读令牌，两边必须与上面发给 web 的那份逐字一致
+fs.writeFileSync(path.join(DIR.studio, 'studio-runner-token'), STUDIO_TOKEN + '\n', {mode: 0o600});
+log(`登录窗口在容器内自带：Xvfb ${DISPLAY} + 浏览器 + VNC，网页里点「打开登录窗口」即可操作`
+  + (STUDIO_PROXY ? `（经代理 ${STUDIO_PROXY}）` : '（直连，未检测到宿主代理）'));
 for (const name of order) {
   const def = byName(name);
   if (!def) continue;

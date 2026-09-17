@@ -5,11 +5,8 @@ const fs=require('node:fs');
 const fsp=require('node:fs/promises');
 const path=require('node:path');
 const {resolveProxy,options:proxyOptions}=require('./proxy.cjs');
+const {STATE_DIR,SESSION_FILE:SESSION,TOKEN_FILE}=require('./state.cjs');
 
-const ROOT=process.env.STUDIO_ROOT||path.resolve(__dirname,'../..');
-const STATE_DIR=path.join(ROOT,'.ai/browser-state');
-const SESSION=process.env.STUDIO_SESSION_FILE||path.join(STATE_DIR,'studio-session.auth.json');
-const TOKEN_FILE=path.join(STATE_DIR,'studio-runner-token');
 const LOGIN_URL='https://studio.tripo3d.ai/';
 const ORIGIN='https://studio.tripo3d.ai';
 const WHOAMI='https://api.tripo3d.ai/v2/studio/studio/whoami?tokenizeAs=default_jwt';
@@ -75,11 +72,12 @@ let notice=null;       // 上一次登录流程的结束原因，供界面展示
 async function launchBrowser(proxy){
   // 关掉 Playwright 默认打开的自动化标记：站点前面有 Cloudflare 人机校验，
   // 让它尽量像一个人开的浏览器，少触发挑战/反复重试。
-  const options={
-    headless:false,
-    ignoreDefaultArgs:['--enable-automation'],
-    args:['--disable-blink-features=AutomationControlled'],
-  };
+  const args=['--disable-blink-features=AutomationControlled'];
+  // 单容器里是以 root 跑在 Docker 中的，这两个开关不加浏览器根本起不来：
+  //   --no-sandbox           Chromium 拒绝在 root 下带沙箱运行
+  //   --disable-dev-shm-usage Docker 默认 /dev/shm 只有 64MB，渲染进程会崩
+  if (process.getuid?.()===0){args.push('--no-sandbox','--disable-dev-shm-usage');}
+  const options={headless:false,ignoreDefaultArgs:['--enable-automation'],args};
   try{
     return await chromium.launch({channel:'chrome',...options,proxy:proxyOptions(proxy)});
   }catch{

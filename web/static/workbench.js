@@ -178,27 +178,30 @@ function dialogConnect() {
   const s = connectFlow.state || {};
   const waiting = s.state === "waiting";
   const credits = studioHealth?.credits != null ? ` · 剩余积分 ${studioHealth.credits}` : "";
+  // 登录画面由容器内的 noVNC 提供，经 gateway 转发到同一个端口上，
+  // 所以这里直接内嵌就行 —— 不用切窗口，也不依赖任何宿主机进程。
+  const VNC_URL = "/studio/vnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&path=studio/vnc/websocket";
   let body =
-    '<p class="help-line">这条链路用的是<strong>你自己账号</strong>的网页订阅积分，不是开发者 API 额度。凭据只写进运行执行器那台机器的 <code>.ai/browser-state/</code>，不上传、不入库。</p>' +
+    '<p class="help-line">这条链路用的是<strong>你自己账号</strong>的网页订阅积分，不是开发者 API 额度。凭据只写进<strong>服务容器的数据卷</strong>（<code>/data/studio/</code>），不上传、不入库。</p>' +
     `<p class="help-line">当前状态：<strong>${connectNotice()}</strong>${credits}${s.notice ? ` · ${esc(s.notice)}` : ""}</p>` +
     (s.configured_proxy
-      ? `<p class="help-line">登录窗口走代理 <code>${esc(s.configured_proxy)}</code>。</p>`
-      : '<p class="help-line">登录窗口<strong>直连，不走代理</strong>。如果这台机器需要代理才能访问上游，窗口里会一直加载不出来 —— 重装执行器时带上 <code>STUDIO_PROXY=http://主机:端口</code> 即可。</p>');
+      ? `<p class="help-line">登录窗口经代理 <code>${esc(s.configured_proxy)}</code> 访问上游。</p>`
+      : '<p class="help-line">登录窗口<strong>直连，不走代理</strong>。若这台机器的网络需要代理才能访问上游，画面里会一直加载不出来 —— 在 <code>.env</code> 里设 <code>STUDIO_PROXY=http://host.docker.internal:7897</code> 后重启容器即可。</p>');
   if (waiting) {
     body +=
-      '<p class="help-line">登录窗口是<strong>留给你自己操作</strong>的：这边不会替你去试，也不会去刷上游。' +
-      "登录完（或换了登录方式）再回来点下面的按钮，我们才去取凭据。" +
+      '<p class="help-line">登录窗口就是<strong>下面这个画面</strong>，直接在里头操作（含邮箱验证码等步骤）。' +
+      "这边不会替你去试，也不会去刷上游；你登好了再点下面的按钮，我们才去取凭据。" +
       `${s.timeout_seconds ? `窗口最多开 ${Math.round(s.timeout_seconds / 60)} 分钟，之后自动关闭。` : ""}</p>` +
-      `<p class="help-line">窗口在<strong>运行执行器的这台机器</strong>上${s.waited_seconds ? `（已开 ${s.waited_seconds} 秒）` : ""} —— 从别的设备连过来的话，请到那台机器上操作。</p>` +
+      `<div class="vnc-frame"><iframe src="${VNC_URL}" title="登录窗口"></iframe></div>` +
       '<button id="connect-finish" class="full">我已登录，取走凭据</button>' +
       '<button id="connect-cancel" class="full">取消并关闭窗口</button>';
   } else {
     if (!studioHealth?.ready) {
       body +=
         '<ol class="help-line" style="padding-left:18px;margin:6px 0">' +
-        "<li>点下面的按钮，浏览器会在运行执行器的机器上弹出。</li>" +
-        "<li>在那个窗口里登录你自己的订阅账号（含邮箱验证码等步骤）。</li>" +
-        "<li>登录完回到这里点「我已登录」，我们就取走这次登录的凭据。</li></ol>";
+        "<li>点下面的按钮，登录画面会<strong>直接出现在这个对话框里</strong>（不用切窗口，也不用去别的机器）。</li>" +
+        "<li>在里面登录你自己的订阅账号（含邮箱验证码等步骤）。</li>" +
+        "<li>登录完点「我已登录」，我们就取走这次登录的凭据。</li></ol>";
     }
     body += `<button id="connect-start" class="full">${studioHealth?.ready ? "重新连接（换账号或会话过期时用）" : "打开登录窗口"}</button>`;
   }

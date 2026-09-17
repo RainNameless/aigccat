@@ -1622,3 +1622,9 @@ dialog .primary {
 
 /* 顶栏服务状态可点：打开「连接网页订阅」对话框 */
 .app-actions #service-status{cursor:pointer;user-select:none}.app-actions #service-status:hover{text-decoration:underline}.app-actions #service-status:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* 登录窗口：容器内 noVNC 的画面，直接嵌在「连接网页订阅」对话框里。
+   显示比例随窗口缩放（resize=scale），高度用 vh 封顶，免得在小屏上把按钮顶出可视区。 */
+#dialog:has(.vnc-frame){width:900px;max-width:96vw}
+.vnc-frame{margin:10px 0;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:#000;aspect-ratio:16/10;max-height:58vh}
+.vnc-frame iframe{display:block;width:100%;height:100%;border:0}

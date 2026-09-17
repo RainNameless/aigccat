@@ -1,13 +1,16 @@
 # aigccat 单容器版 —— 给「只想快点跑起来」的人
 #
 # 一个容器 = 存储(MinIO) + 后端(web) + 鉴权(gateway) + AI 绑骨(opencode)
-#            + Blender 5.2（减面 / 重拓扑 / 部件编辑 / 自动绑骨）。
+#            + Blender 5.2（减面 / 重拓扑 / 部件编辑 / 自动绑骨）
+#            + 登录用的浏览器（Xvfb + Chromium + noVNC，网页里内嵌显示）。
 # 首次启动自动生成密钥与初始账号，不用先配 .env。
+# **宿主机上不需要装任何东西。**
 #
 # ⚠ 镜像有 amd64 / arm64 两个版本，Docker 会自动选。
 #   amd64 版**自带 Blender 5.2**（减面/重拓扑/绑骨容器内直接可用）。
-#   arm64 版不含 Blender —— Blender 官方只发布 Linux x64，没有 arm64 版；
-#   这时容器会自动改用**宿主机上的 Blender**（macOS 装个 Blender 即可）。
+#   arm64 版不含 Blender —— Blender 官方只发布 Linux x64，没有 arm64 版，
+#   所以这几个功能在 arm64 容器里不可用（其余功能不受影响）。
+#   Apple Silicon 想用这些功能，用 amd64 的机器跑这个 compose 即可。
 #
 # 用法（二选一）：
 #   1) 直接用预构建镜像（推荐，零编译）：
@@ -63,9 +66,14 @@ services:
       IMAGE_API_KEY: ${IMAGE_API_KEY:-}
       IMAGE_BASE_URL: ${IMAGE_BASE_URL:-}
       IMAGE_MODEL: ${IMAGE_MODEL:-}
-      # Studio 网页订阅执行器：它要弹真人浏览器窗口，所以仍然跑在宿主机上
+      # Studio 网页订阅：登录窗口（Xvfb + 浏览器 + noVNC）与执行器都在容器内，
+      # 网页里内嵌显示，宿主机上不需要任何东西。这两个留空即可，容器会自己生成令牌。
+      # 只在你想改用**外部**执行器时才设（例如自己另跑一个 8790）。
       STUDIO_WORKER_TOKEN: ${STUDIO_WORKER_TOKEN:-}
       STUDIO_WORKER_URL: ${STUDIO_WORKER_URL:-}
+      # 访问被墙的上游时用的代理。容器内 127.0.0.1 不是宿主机，要写 host.docker.internal。
+      # 留空则容器启动时自动探测 host.docker.internal:7897（Clash 默认端口）通不通。
+      STUDIO_PROXY: ${STUDIO_PROXY:-}
       # Blender 工作器与绑骨桥默认用**容器内置**那份（留空即走内置 127.0.0.1）。
       # 只有想改用你自己宿主上的 Blender 时才设这两个（例如 http://host.docker.internal:8788）。
       BLENDER_WORKER_URL: ${BLENDER_WORKER_URL:-}

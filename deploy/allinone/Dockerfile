@@ -165,6 +165,34 @@ RUN npm install --omit=dev --no-audit --no-fund
 COPY scripts/opencode-runner/ ./
 RUN npm install -g opencode-ai@${OPENCODE_VERSION} --no-audit --no-fund
 
+# ─────────────── 内置浏览器：网页订阅登录用 ───────────────
+# 原来「打开登录窗口」是让**宿主机**弹一个真窗口，于是宿主机上必须常驻一个执行器进程。
+# 这里改成在容器内自己造一块虚拟屏幕 + 一个真浏览器 + VNC 服务，
+# 画面经 gateway 转发到网页里内嵌显示 —— 宿主机上不再需要任何东西。
+# 容器没有物理显示器，所以用 Xvfb 提供 DISPLAY，浏览器仍以「有头」方式跑
+# （headless 会被 Cloudflare 识破；有头 + 真显示才是能过校验的组合）。
+ARG PLAYWRIGHT_DOWNLOAD_HOST=""
+ENV DISPLAY=:99
+RUN set -eux; \
+    apt-get update -o Acquire::Retries=8; \
+    apt-get install -y --no-install-recommends --fix-missing \
+      xvfb x11vnc novnc websockify \
+      fonts-liberation fonts-noto-cjk; \
+    rm -rf /var/lib/apt/lists/*
+
+# 会话执行器（Playwright 驱动的登录窗口 + 会话校验）。
+# 与宿主机用的是同一份代码：靠 STUDIO_STATE_DIR / DISPLAY 环境变量切换，不改业务逻辑。
+WORKDIR /srv/studio-runner
+COPY scripts/studio-runner/package.json scripts/studio-runner/package-lock.json ./
+RUN set -eux; \
+    if [ -n "$PLAYWRIGHT_DOWNLOAD_HOST" ]; then export PLAYWRIGHT_DOWNLOAD_HOST="$PLAYWRIGHT_DOWNLOAD_HOST"; fi; \
+    npm install --omit=dev --no-audit --no-fund
+COPY scripts/studio-runner/ ./
+RUN set -eux; \
+    if [ -n "$PLAYWRIGHT_DOWNLOAD_HOST" ]; then export PLAYWRIGHT_DOWNLOAD_HOST="$PLAYWRIGHT_DOWNLOAD_HOST"; fi; \
+    npx playwright install --with-deps chromium; \
+    node -e "const {chromium}=require('playwright');console.log('chromium:',chromium.executablePath())"
+
 # 启动器
 COPY deploy/allinone/supervisor.mjs /srv/supervisor.mjs
 
@@ -177,7 +205,8 @@ ENV NODE_ENV=production \
     OPENCODE_DISABLE_AUTOUPDATE=true \
     OPENCODE_DISABLE_MODELS_FETCH=true \
     AIGCCAT_DATA=/data \
-    BLENDER_BIN=/opt/blender/blender
+    BLENDER_BIN=/opt/blender/blender \
+    STUDIO_STATE_DIR=/data/studio
 
 VOLUME ["/data"]
 EXPOSE 8080
