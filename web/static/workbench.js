@@ -10,7 +10,7 @@ import { studioMotions, motionCategories } from './studio-motions.js?v=1';
 import { moveToTrash, trashResult } from './asset-trash.js?v=2';
 import { mountModelActions } from './model-actions.js?v=5';
 import * as THREE from "three";
-import { viewerTools } from "./viewer.js?v=opened-cache-20";
+import { viewerTools } from "./viewer.js?v=opened-cache-21";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { starterPresets, loadPresets, savePresets } from './creative-presets.js?v=1';
@@ -497,8 +497,7 @@ function numeric(name, min, max, step = 1) {
 function toggle(name, label) {
   return `<label class="toggle">${label}<input type="checkbox" data-field="${name}" ${form[name] ? "checked" : ""}></label>`;
 }
-// Model-generation help only; native disclosures work with keyboard and touch,
-// and live outside labels so opening help never toggles a generation option.
+// Two reading levels: quick parameter notes, and an opt-in beginner companion.
 const MODEL_PARAMETER_HELP = {
   faces: ['目标面数', '控制生成网格的面数预算；“自动”交由服务决定。', '原型、远景和实时场景可先尝试较低面数；近景或复杂轮廓可适当提高。', '更多面通常增加文件和渲染负担，不保证质量更好；最终面数以生成结果为准。'],
   geometry: ['几何精度', '控制形状细节的生成档位，不是贴图清晰度。', '标准适合先验证造型；高精度适合近景、复杂轮廓和细小结构。', '高精度不能修复参考图之间的矛盾。当前工作台仅在网页订阅的 v3.1 提供此项。'],
@@ -509,8 +508,169 @@ const MODEL_PARAMETER_HELP = {
   size: ['导出贴图尺寸', '设置导出纹理的目标尺寸：2K / 4K / 8K。', '远景与原型可先用较小尺寸；近景展示可尝试较大尺寸。', '较大尺寸通常占用更多存储与显存。此项作用于导出，不保证增加生成细节，实际尺寸以结果为准。'],
 };
 function modelParameterHelp(key) {
-  const [title, meaning, use, tradeoff] = MODEL_PARAMETER_HELP[key];
-  return `<details class="model-parameter-help"><summary aria-label="${esc(title)}说明">${esc(title)} · 说明</summary><dl><dt>是什么</dt><dd>${esc(meaning)}</dd><dt>何时使用</dt><dd>${esc(use)}</dd><dt>取舍与限制</dt><dd>${esc(tradeoff)}</dd></dl></details>`;
+  return `<button type="button" class="parameter-help-button" data-parameter-help="${key}" aria-label="${esc(MODEL_PARAMETER_HELP[key][0])}说明">?</button>`;
+}
+const MODEL_BEGINNER_HELP = {
+  faces: {
+    title: '面数，就是拼出形状的小面片有多少。',
+    intro: '把模型想成纸模：小面片拼成表面。面片少，轮廓可能有棱角；面片多，才有空间表现更细的形状。',
+    compare: [['较低面数', '像折纸。适合远处的石头、场景里的大量小道具，也方便先试造型。'], ['较高面数', '像更细的纸模。适合镜头贴近的主角、复杂装饰，但文件更大、渲染更吃力。']],
+    tip: '先选“自动”。放进实际场景后，如果轮廓明显有棱角，再考虑提高；一块远景石头通常不需要和主角一样精细。',
+    note: '面数是预算，不是质量分数。多加面不会自动修好错误的五官或比例。',
+  },
+  geometry: {
+    title: '几何管形状，贴图管表面。',
+    intro: '想象一把剑：剑刃、护手和刀柄的立体轮廓是几何；刀柄上的花纹则可以画在贴图上。几何精度影响 AI 生成形状的细致程度。',
+    compare: [['标准', '先看是不是你想要的造型。做原型、远景道具时可从这里开始。'], ['高精度', '更关注细小结构。近看护手的镂空、复杂轮廓时，可以尝试这一档。']],
+    tip: '先分清问题：轮廓不够细，考虑几何；只是表面花纹模糊，应该看贴图质量。',
+    note: '它和目标面数不是一回事：一个影响生成细节档位，一个指定网格预算。',
+  },
+  quad: {
+    title: '四边面与三角面，是两种“拼网格”的方式。',
+    intro: '模型表面由点和边连成的小面片组成，这些连接关系就叫“拓扑”。四边面有四条边，三角面有三条边。',
+    diagram: 'mesh',
+    compare: [['打算继续改模型、做角色动画', '可以尝试四边面。成排的边更方便选取、细分，也便于整理膝盖、手肘和嘴部的变形布线。'], ['静态石头、摆件、直接放进游戏', '三角面也很常见，不必只为“游戏资产”就开启四边面。实时渲染最终通常使用三角形。']],
+    tip: '动漫角色准备绑骨骼？可把四边面当作后续整理的起点，再检查关节布线与蒙皮权重。',
+    note: '四边面不是“弯曲不出折痕”的保证。当前下载的 GLB 也不能保留四边面原语；若要继续编辑四边面，需要支持它的格式和导出流程。',
+  },
+  texture: {
+    title: '模型是形状，纹理像贴在表面的彩绘。',
+    intro: '一把剑只有几何时，像没上色的灰色道具。加上纹理，就有了刀身颜色、刀柄花纹和磨损痕迹。',
+    diagram: 'sword',
+    compare: [['关闭：先看形状', '适合检查比例、轮廓，或者准备之后自己画贴图。'], ['开启：同时生成外观', '想直接看到角色的发色、衣服图案，或道具上的花纹时开启。']],
+    tip: '做完整外观通常开启；只是在反复试造型，可以先关闭。',
+    note: '贴图不能改变真实轮廓。画一道裂缝，不等于模型真的裂开。GLB 可以把图片与模型一起封装，未必另有一张 PNG。',
+  },
+  pbr: {
+    title: '颜色说“它是什么颜色”，PBR 说“它怎么反光”。',
+    intro: '同样是灰色，钢铁、塑料和布料遇到光会有不同表现。PBR（基于物理的渲染）用一组材质信息来描述这些差别。',
+    compare: [['只看颜色', '刀身是灰色，刀柄有花纹；表面如何反光还要看现有材质设置。'], ['配合 PBR 信息', '让刀身呈现金属反射、皮革显得粗糙。转动光源时，材质的区别更容易看出来。']],
+    glossary: [['基础色', '表面本来的颜色与图案。'], ['粗糙度', '光滑时高光更集中，粗糙时高光更散。'], ['金属度', '区分金属与木头、皮肤、塑料等非金属的反射方式。'], ['法线', '用光照模拟划痕、砖缝等凹凸，不增加真实轮廓。'], ['AO（环境遮蔽）', '描述缝隙等不容易接收到环境光的位置。']],
+    tip: '写实道具、金属武器可以尝试开启。动漫角色若使用卡通着色器，应按着色器需要选材质，不必为了“二次元”一律开启。',
+    note: '开启 PBR 不代表一定输出上面每一种贴图；有的通道会打包在同一张图里。最终外观也取决于灯光和引擎材质。',
+  },
+  quality: {
+    title: '贴图质量，关注的是“画得有多细”。',
+    intro: '以一件外套为例：衣服底色、大块图案容易看清；织物纹路、小字、接缝需要更细的表面信息。',
+    compare: [['标准', '适合先看配色与整体效果，也适合镜头不会贴近的道具。'], ['极高', '近距离展示衣服花纹、武器表面时可以尝试，再比较实际效果是否值得。']],
+    tip: '先用标准检查风格和配色，满意后再考虑提高质量，减少反复试错的成本。',
+    note: '质量档位和导出尺寸分开看。导出 8K 不能把原本画错的花纹变正确。',
+  },
+  size: {
+    title: '2K、4K、8K，是贴图这张“画纸”的像素尺寸。',
+    intro: '它们通常对应 2048、4096、8192 像素的边长。画纸越大，能存下的像素越多，但并不代表 AI 一定画出了更多细节。',
+    compare: [['2K', '可先用于原型、普通道具或较远的镜头，再检查是否够清楚。'], ['4K / 8K', '用于大面积或近景表面时可以尝试；更占存储和显存，远景可能看不出区别。']],
+    tip: '按实际镜头距离选。不是所有石头都需要 8K：先看游戏里能否分辨出差别。',
+    note: '相同通道与格式下，宽高各翻倍，像素数是原来的四倍。这里设置的是导出目标，实际尺寸和细节仍要检查输出。',
+  },
+};
+const GUIDE_CAT = `<svg viewBox="0 0 64 64" aria-hidden="true"><path class="cat-body" d="M12 29 9 9 26 18Q32 15 38 18L55 9 52 29Q60 54 32 56 4 54 12 29Z"/><path class="cat-ear" d="m14 17 3 12 7-8m26-4-3 12-7-8"/><path class="cat-face" d="M21 34v4m22-4v4m-15 5 4 3 4-3m-4 3v3m-16-7-7-2m39 2 7-2"/><circle class="cat-cheek" cx="18" cy="43" r="3"/><circle class="cat-cheek" cx="46" cy="43" r="3"/></svg>`;
+let parameterTip, guideWidget, activeHelpButton, helpPinned = false, helpHideTimer;
+let guideTopic = 'faces';
+function hideParameterTip() {
+  clearTimeout(helpHideTimer);
+  if (parameterTip) parameterTip.hidden = true;
+  activeHelpButton?.removeAttribute('aria-describedby');
+  activeHelpButton = null;
+  helpPinned = false;
+}
+function positionParameterTip() {
+  if (!activeHelpButton || parameterTip.hidden) return;
+  const rect = activeHelpButton.getBoundingClientRect();
+  const width = parameterTip.offsetWidth, height = parameterTip.offsetHeight;
+  let left = rect.right + 10;
+  if (left + width > innerWidth - 12) left = rect.left - width - 10;
+  parameterTip.style.left = `${Math.max(12, Math.min(left, innerWidth - width - 12))}px`;
+  parameterTip.style.top = `${Math.max(12, Math.min(rect.top - 8, innerHeight - height - 12))}px`;
+}
+function showParameterTip(button) {
+  clearTimeout(helpHideTimer);
+  if (helpPinned && activeHelpButton !== button) return;
+  activeHelpButton?.removeAttribute('aria-describedby');
+  activeHelpButton = button;
+  const [title, meaning, use, tradeoff] = MODEL_PARAMETER_HELP[button.dataset.parameterHelp];
+  parameterTip.innerHTML = `<strong>${esc(title)}</strong><p>${esc(meaning)}</p><p>${esc(use)}</p><small>${esc(tradeoff)}</small>`;
+  parameterTip.hidden = false;
+  button.setAttribute('aria-describedby', 'model-parameter-tooltip');
+  positionParameterTip();
+  if (!guideWidget.querySelector('.guide-panel').hidden) renderBeginnerGuide(button.dataset.parameterHelp);
+}
+function renderBeginnerGuide(key = guideTopic) {
+  guideTopic = key;
+  const item = MODEL_BEGINNER_HELP[key];
+  const available = [...$('parameters').querySelectorAll('[data-parameter-help]')].map(b => b.dataset.parameterHelp);
+  guideWidget.querySelector('.guide-topics').innerHTML = available.map(k => `<button type="button" data-guide-topic="${k}" aria-pressed="${k === key}">${esc(MODEL_PARAMETER_HELP[k][0])}</button>`).join('');
+  const diagram = item.diagram === 'mesh' ? '<div class="guide-mesh" aria-label="四边面像方格，三角面像对角线切开的方格"><div><span class="quad-grid"></span>四边面</div><div><span class="triangle-grid"></span>三角面</div></div>' : item.diagram === 'sword' ? '<div class="guide-sword"><span>灰色造型</span><b>＋</b><span>颜色、花纹</span><b>＝</b><span>带纹理的剑</span></div>' : '';
+  guideWidget.querySelector('.guide-content').innerHTML = `<h3>${esc(item.title)}</h3><p>${esc(item.intro)}</p>${diagram}<div class="guide-comparison">${item.compare.map(([title, text]) => `<section><h4>${esc(title)}</h4><p>${esc(text)}</p></section>`).join('')}</div>${item.glossary ? `<dl class="guide-glossary">${item.glossary.map(([word, text]) => `<dt>${esc(word)}</dt><dd>${esc(text)}</dd>`).join('')}</dl>` : ''}<p class="guide-tip"><strong>怎么选</strong>${esc(item.tip)}</p><p class="guide-note">${esc(item.note)}</p>`;
+  guideWidget.querySelector('.guide-content').scrollTop = 0;
+  guideWidget.querySelectorAll('[data-guide-topic]').forEach(b => b.onclick = () => {
+    renderBeginnerGuide(b.dataset.guideTopic);
+    guideWidget.querySelector(`[data-guide-topic="${b.dataset.guideTopic}"]`).focus();
+  });
+}
+function setBeginnerGuide(open) {
+  guideWidget.querySelector('.guide-panel').hidden = !open;
+  guideWidget.querySelector('.guide-launcher').setAttribute('aria-expanded', String(open));
+  try { localStorage.setItem('aigccat.beginner-guide', String(open)); } catch {}
+  if (open) renderBeginnerGuide();
+}
+function mountModelParameterHelp() {
+  hideParameterTip();
+  if (!parameterTip) {
+    parameterTip = document.createElement('div');
+    parameterTip.id = 'model-parameter-tooltip';
+    parameterTip.className = 'parameter-tooltip';
+    parameterTip.setAttribute('role', 'tooltip');
+    parameterTip.hidden = true;
+    document.body.append(parameterTip);
+    parameterTip.onmouseenter = () => clearTimeout(helpHideTimer);
+    const scheduleHide = () => { if (!helpPinned) helpHideTimer = setTimeout(hideParameterTip, 140); };
+    parameterTip.onmouseleave = scheduleHide;
+    document.addEventListener('pointerdown', e => {
+      if (!e.target.closest('.parameter-help-button, .parameter-tooltip')) hideParameterTip();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') hideParameterTip(); });
+    window.addEventListener('resize', positionParameterTip);
+    $('parameters').addEventListener('scroll', hideParameterTip);
+    guideWidget = document.createElement('aside');
+    guideWidget.className = 'beginner-guide';
+    guideWidget.innerHTML = `<section class="guide-panel" id="model-beginner-guide" aria-label="aigccat 新手向导" hidden><header><div><strong>aigccat · 新手向导</strong><small>把术语换成看得懂的例子</small></div><button type="button" class="guide-close" aria-label="关闭新手向导">×</button></header><nav class="guide-topics" aria-label="选择要了解的参数"></nav><div class="guide-content"></div><footer>指向参数旁的 ?，我会讲解对应内容。</footer></section><button type="button" class="guide-launcher" aria-controls="model-beginner-guide" aria-expanded="false">${GUIDE_CAT}<span>新手向导</span></button>`;
+    document.body.append(guideWidget);
+    guideWidget.querySelector('.guide-launcher').onclick = () => setBeginnerGuide(guideWidget.querySelector('.guide-panel').hidden);
+    guideWidget.querySelector('.guide-close').onclick = () => {
+      setBeginnerGuide(false);
+      guideWidget.querySelector('.guide-launcher').focus();
+    };
+    guideWidget.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { setBeginnerGuide(false); guideWidget.querySelector('.guide-launcher').focus(); }
+    });
+    try { if (localStorage.getItem('aigccat.beginner-guide') === 'true') setBeginnerGuide(true); } catch {}
+  }
+  guideWidget.hidden = tool !== 'model';
+  $('parameters').querySelectorAll('[data-parameter-help]').forEach(button => {
+    const control = button.previousElementSibling;
+    const label = control.matches('.toggle') ? control : control.previousElementSibling;
+    const row = document.createElement('div');
+    row.className = control.matches('.toggle') ? 'parameter-toggle-row' : 'parameter-heading';
+    label.before(row);
+    row.append(label, button);
+    button.onmouseenter = () => showParameterTip(button);
+    button.onfocus = () => showParameterTip(button);
+    button.onmouseleave = button.onblur = () => {
+      clearTimeout(helpHideTimer);
+      if (!helpPinned) helpHideTimer = setTimeout(hideParameterTip, 140);
+    };
+    button.onclick = () => {
+      if (helpPinned && activeHelpButton === button) { hideParameterTip(); return; }
+      helpPinned = false;
+      showParameterTip(button);
+      helpPinned = true;
+    };
+  });
+  if (tool === 'model' && !guideWidget.querySelector('.guide-panel').hidden) {
+    const keys = [...$('parameters').querySelectorAll('[data-parameter-help]')].map(b => b.dataset.parameterHelp);
+    renderBeginnerGuide(keys.includes(guideTopic) ? guideTopic : 'faces');
+  }
 }
 function uploadBox(view, label, small = false) {
   return `<button class="drop-zone ${small ? "small" : ""}" data-upload="${view}" title="${label}" aria-label="${label}">${uploads[view]?.url ? `<img src="${uploads[view].url}" alt="${label}">` : `${icon(view === 'batch' ? 'gallery-horizontal-end' : 'file-image')}<span>${uploads[view]?.files ? uploads[view].files.length + ' 张参考图' : label}</span>`}</button>`;
@@ -814,6 +974,7 @@ function renderParameters() {
     }
   }
   $("parameters").innerHTML = html;
+  mountModelParameterHelp();
   if(tool === 'animation' && form.animationPanel === 'studio') bindStudioMotionLibrary();
   if(tool === 'animation' && form.animationPanel === 'clips') {
     disposeMotionPreviews = mountModelActions($('model-actions'), {
