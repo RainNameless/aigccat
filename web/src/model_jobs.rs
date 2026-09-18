@@ -303,6 +303,14 @@ async fn generate_api_task(st:Shared,dir:String,id:String,req:Generate,provider:
     if provider=="hunyuan3d" && image_mode==false && req.prompt.chars().count()>200{
         return Err(bad("Hunyuan3D 文生 3D 的描述上限是 200 字，请精简描述或换用其他供应商"));
     }
+    // Key 预检同步做（与 Meshy 一致）：缺 Key 在创建任务记录之前就报出来，
+    // 不会留下 failed/unknown 的任务残影。此时尚未发出任何网络请求，不可能计费。
+    match provider.as_str() {
+        "rodin" => { crate::rodin::Client::new(service.clone()).map_err(bad)?; }
+        "hi3d" => { crate::hi3d::Client::new(service.clone()).map_err(bad)?; }
+        "hunyuan3d" => { crate::hunyuan::Client::new(service.clone()).map_err(bad)?; }
+        _ => {}
+    }
     let base_url=service.base_url.clone();
     let model_name=service.model.clone();
     let (base,asset,_,_)=ops::load(&st,&dir,&id).await?;
