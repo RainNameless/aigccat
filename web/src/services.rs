@@ -9,7 +9,7 @@ use std::{fs::{self, OpenOptions}, io::Write, os::unix::fs::{OpenOptionsExt, Per
 /// 建模引擎未接入时的说明（model.ready=false 时展示）；不把未接入能力描述为可用。
 pub const MODEL_MESSAGE: &str = concat!(
     "请在模型配置管理中为 Tripo / Meshy / Rodin / Hunyuan3D / Hi3D 任一家填写 API Key。",
-    "当前已接入生成链路的是 Tripo 与 Meshy；其余三家的官方端点已核对（docs/PROVIDERS.md），传输层陆续补齐。",
+    "五家均已接入生成链路（各家参数与密钥格式见 docs/PROVIDERS.md；混元填 SecretId:SecretKey）。",
 );
 static FILE_LOCK: Mutex<()> = Mutex::new(());
 const FILE: &str = "/srv/config/services.json";
@@ -254,7 +254,15 @@ impl Catalog {
     fn ensure_builtin(&mut self) {
         for builtin in crate::providers::BUILTIN {
             if self.providers.iter().any(|p| p.id == builtin.id) { continue; }
-            let api_key = std::env::var(builtin.key_env).unwrap_or_default();
+            // 环境变量只作首次登记的初值；混元是两段式密钥（SecretId:SecretKey），两段都在才拼
+            let api_key = match builtin.key_env2 {
+                Some(second) => {
+                    let id = std::env::var(builtin.key_env).unwrap_or_default();
+                    let key = std::env::var(second).unwrap_or_default();
+                    if !id.is_empty() && !key.is_empty() { format!("{id}:{key}") } else { String::new() }
+                }
+                None => std::env::var(builtin.key_env).unwrap_or_default(),
+            };
             self.providers.push(Provider { id: builtin.id.into(), name: builtin.name.into(), base_url: builtin.base_url.into(), api_key });
             for (i, model) in builtin.models.iter().enumerate() {
                 let mut model_id = format!("{}-model-{i}", builtin.id);

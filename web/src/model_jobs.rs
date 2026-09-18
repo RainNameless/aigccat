@@ -27,13 +27,10 @@ pub async fn generate(State(st):State<Shared>,Path((dir,id)):Path<(String,String
     match provider.as_str() {
         "tripo" => generate_tripo(st,dir,id,req,service).await,
         "meshy" => generate_meshy(st,dir,id,req,service).await,
+        "rodin" | "hi3d" | "hunyuan3d" => generate_api_task(st,dir,id,req,provider,service).await,
         other => {
-            // 未接入的供应商：把「为什么不能跑、去哪看文档」一次说清，别让人猜
-            let b=crate::providers::builtin(other);
-            let auth_hint=if b.is_some_and(|b|b.auth==crate::providers::Auth::TencentCloudSignature){"（注意：它用腾讯云 TC3 签名，不是 Bearer Key）"}else{""};
-            let name=b.map(|b|b.name).unwrap_or(other);
-            let docs=b.map(|b|b.docs).unwrap_or("docs/PROVIDERS.md");
-            Err(bad(format!("「{name}」的生成传输层尚未接入本分支{auth_hint}；官方端点已核对（{docs}），可先用 Tripo / Meshy")))
+            // 自定义接入（非内置五家）：现有传输层只有 Tripo 系认识它
+            Err(bad(format!("自定义接入「{other}」暂只支持 Tripo 系接口；内置五家（Tripo / Meshy / Rodin / Hunyuan3D / Hi3D）均已接入，见 docs/PROVIDERS.md")))
         }
     }
 }
@@ -231,6 +228,157 @@ fn client_clean(_client:&crate::meshy::Client,data:&Value)->String{
     data["task_error"]["message"].as_str().unwrap_or("Meshy 生成失败或取消").chars().filter(|c| !c.is_control()).take(400).collect()
 }
 
+/* ─────────── 通用任务收尾（Rodin / Hi3D / Hunyuan 共用） ───────────
+   三家的轮询逻辑各自不同，但收尾（超时、断点恢复、落盘、提交版本）完全一致，
+   所以统一走这里；每家只需要实现 poll_once。 */
+
+type PollFuture=std::pin::Pin<Box<dyn std::future::Future<Output=Result<crate::providers::PollOutcome,String>>+Send>>;
+type PollMaker=Box<dyn FnMut()->PollFuture+Send>;
+
+/// 供应商 → 轮询闭包。生成入口与任务恢复共用这一处。
+fn build_poll_maker(provider:&str,service:crate::services::Service,task_id:String)->Result<PollMaker,String>{
+    match provider {
+        "rodin"=>{
+            let c=crate::rodin::Client::new(service)?;
+            Ok(Box::new(move||{let c=c.clone();let r=task_id.clone();Box::pin(async move{c.poll_once(&r).await})}))
+        },
+        "hi3d"=>{
+            let c=crate::hi3d::Client::new(service)?;
+            Ok(Box::new(move||{let c=c.clone();let r=task_id.clone();Box::pin(async move{c.poll_once(&r).await})}))
+        },
+        "hunyuan3d"=>{
+            let c=crate::hunyuan::Client::new(service)?;
+            Ok(Box::new(move||{let c=c.clone();let r=task_id.clone();Box::pin(async move{c.poll_once(&r).await})}))
+        },
+        other=>Err(format!("供应商「{other}」没有可恢复的传输层")),
+    }
+}
+
+async fn finish_poll_task(st:Shared,base:String,job:String,asset:Value,task_id:String,label:String,mut poll:PollMaker){
+    let result=tokio::time::timeout(Duration::from_secs(1800),async{
+        if let Ok(glb)=st.store.get_bytes(&format!("{base}/jobs/{job}/result.glb")).await{
+            commit_result(&st,&base,&job,&asset,&task_id,&glb,None,Some("已恢复本地模型；可在工作台保存当前视角".into())).await?;
+            return Ok::<(),String>(());
+        }
+        loop{
+            match poll().await?{
+                crate::providers::PollOutcome::Running(percent)=>{
+                    patch(&st,&base,&job,json!({"status":"running","stage":"polling","last_checked_at":ops::now_epoch(),
+                        "progress":{"phase":format!("{label} 生成中"),"percent":5+percent.min(100)*89/100}})).await?;
+                },
+                crate::providers::PollOutcome::Failed{error,credits}=>{
+                    patch(&st,&base,&job,json!({"status":"failed","error":error,"credits_consumed":credits,"finished_at":ops::now_epoch()})).await?;
+                    return Ok(());
+                },
+                crate::providers::PollOutcome::Success{glb,preview,warning,credits}=>{
+                    patch(&st,&base,&job,json!({"stage":"downloading","credits_consumed":credits,
+                        "progress":{"phase":"保存模型与预览","percent":95}})).await?;
+                    st.store.put_bytes(&format!("{base}/jobs/{job}/result.glb"),&glb).await?;
+                    commit_result(&st,&base,&job,&asset,&task_id,&glb,preview,warning).await?;
+                    return Ok(());
+                },
+            }
+            tokio::time::sleep(Duration::from_secs(3)).await;
+        }
+    }).await.unwrap_or_else(|_|Err(format!("等待 {label} 超过 30 分钟，请查询原任务结果")));
+    if let Err(error)=result{
+        let _=patch(&st,&base,&job,json!({"status":"waiting","error":error,"resumable":true,
+            "progress":{"phase":"连接或保存中断，可查询原任务","percent":0}})).await;
+    }
+}
+
+/// Rodin / Hi3D / Hunyuan 的生成入口（三家共用一个外壳，只差提交调用）。
+async fn generate_api_task(st:Shared,dir:String,id:String,req:Generate,provider:String,service:crate::services::Service)->ResultApi{
+    let image_mode=req.mode!="text";
+    if !matches!(req.mode.as_str(),"text"|"single"){
+        return Err(bad(format!("{provider} 通道目前支持文字与单图建模；多视图请选择 Tripo")));
+    }
+    // Hi3D 官方接口要求必须有输入图片（images / multi_images），没有文生 3D
+    if provider=="hi3d" && !image_mode{
+        return Err(bad("Hi3D 通道仅支持图生 3D（官方接口要求输入图片）；文字建模请选择其他供应商"));
+    }
+    if req.mode=="text" && (req.prompt.trim().is_empty() || req.prompt.chars().count()>1024){
+        return Err(bad("文字建模描述需为 1–1024 字"));
+    }
+    if provider=="hunyuan3d" && image_mode==false && req.prompt.chars().count()>200{
+        return Err(bad("Hunyuan3D 文生 3D 的描述上限是 200 字，请精简描述或换用其他供应商"));
+    }
+    let base_url=service.base_url.clone();
+    let model_name=service.model.clone();
+    let (base,asset,_,_)=ops::load(&st,&dir,&id).await?;
+    if let Some(expected)=req.expected_history_node_id.as_deref(){
+        if let Some(result)=crate::history::check_stale_head(&st.store,&base,expected).await{return Ok(result);}
+    }
+    let permit=ops::MODEL_GATE.try_acquire().map_err(|_|(StatusCode::CONFLICT,"已有模型任务在运行，请等任务完成".into()))?;
+    if ops::has_active_model_job(&st,&base).await{return Err((StatusCode::CONFLICT,"该资产仍有未确认的模型任务，请先查看任务记录并查询原任务".into()));}
+    let mut images=Vec::new();
+    if image_mode{
+        match st.store.get_bytes(&format!("{base}/source/reference_front.png")).await{
+            Ok(bytes)=>{
+                let bytes=crate::tripo::reference_png(&bytes).map_err(|e|bad(format!("front参考图：{e}")))?;
+                images.push(bytes);
+            },
+            Err(_)=>return Err(bad("请先上传正面参考图")),
+        }
+    }
+    let job=ops::next_job(&st,&base,"model_build",json!({"provider":provider,"status":"running","started_at":ops::now_epoch(),
+        "model":model_name,"model_id":req.model_id,"service_base_url":base_url,"request":req.clone(),
+        "stage":"prepared","progress":{"phase":"准备参考图","percent":0}})).await?;
+    for (i,bytes) in images.iter().enumerate(){
+        if let Err(e)=st.store.put_bytes(&format!("{base}/jobs/{job}/reference_front_{i}.png"),bytes).await{
+            let _=patch(&st,&base,&job,json!({"status":"failed","error":"保存输入失败，未提交生成请求","finished_at":ops::now_epoch()})).await;
+            return Err(storage(e));
+        }
+    }
+    patch(&st,&base,&job,json!({})).await.map_err(storage)?;
+    let accepted=json!({"job_id":job,"asset_id":id,"status":"running","provider":provider,"accepted":true});
+    tokio::spawn(async move{
+        let _permit=permit;
+        let submission:Result<String,String>=async{
+            patch(&st,&base,&job,json!({"stage":"submitting","progress":{"phase":"提交生成任务","percent":5}})).await?;
+            // 唯一一次付费 POST；语义不明的响应绝不触发第二次提交
+            let task_id=match provider.as_str(){
+                "rodin"=>{
+                    let c=crate::rodin::Client::new(service.clone())?;
+                    if image_mode{c.create_image(images.remove(0)).await?}else{c.create_text(req.prompt.trim()).await?}
+                },
+                "hi3d"=>{
+                    let c=crate::hi3d::Client::new(service.clone())?;
+                    c.create_image(images.remove(0),req.pbr).await?
+                },
+                "hunyuan3d"=>{
+                    let c=crate::hunyuan::Client::new(service.clone())?;
+                    if image_mode{
+                        use base64::Engine as _;
+                        let b64=base64::engine::general_purpose::STANDARD.encode(&images.remove(0));
+                        c.create(None,Some(&b64),req.pbr).await?
+                    }else{
+                        c.create(Some(req.prompt.trim()),None,req.pbr).await?
+                    }
+                },
+                _=>return Err("供应商路由异常".into()),
+            };
+            patch(&st,&base,&job,json!({"provider_task_id":task_id,"stage":"polling"})).await?;
+            Ok(task_id)
+        }.await;
+        match submission{
+            Ok(task_id)=>{
+                let poll=build_poll_maker(&provider,service.clone(),task_id.clone());
+                match poll{
+                    Ok(poll)=>finish_poll_task(st.clone(),base.clone(),job.clone(),asset,task_id,provider,poll).await,
+                    Err(error)=>{let _=patch(&st,&base,&job,json!({"status":"failed","error":error,"finished_at":ops::now_epoch()})).await;},
+                }
+            },
+            Err(error)=>{
+                let record=st.store.get_json(&format!("{base}/jobs/{job}.json")).await.unwrap_or(json!({}));
+                let uncertain=record["stage"]=="submitting";
+                let _=patch(&st,&base,&job,json!({"status":if uncertain{"unknown"}else{"failed"},"error":format!("{error}；未自动重试"),"finished_at":ops::now_epoch()})).await;
+            }
+        }
+    });
+    Ok((StatusCode::ACCEPTED,Json(accepted)))
+}
+
 async fn finish_poll(st:Shared,base:String,job:String,asset:Value,client:Client,task_id:String){
     let result=tokio::time::timeout(Duration::from_secs(1800),async{
         if let Ok(glb)=st.store.get_bytes(&format!("{base}/jobs/{job}/result.glb")).await {
@@ -320,6 +468,21 @@ pub async fn resume(State(st):State<Shared>,Path((dir,id,job)):Path<(String,Stri
         tokio::spawn(async move{let _permit=permit;finish_poll_meshy(st,base,job,asset,client,task_id).await;});
         return Ok((StatusCode::ACCEPTED,Json(response)));
     }
+    if ["rodin","hi3d","hunyuan3d"].contains(&record["provider"].as_str().unwrap_or("")){
+        if record["status"]=="done"{return Ok((StatusCode::OK,Json(record)));}
+        if record["status"]=="failed" {return Err(bad("供应商已确认失败，不能恢复该任务"));}
+        let task_id=record["provider_task_id"].as_str().ok_or_else(||bad("未取得任务编号；请先到对应供应商控制台核对是否已创建，避免重复计费"))?.to_string();
+        let permit=ops::MODEL_GATE.try_acquire().map_err(|_|(StatusCode::CONFLICT,"已有模型任务在查询，请稍后查看".into()))?;
+        let settings=services::snapshot(&st.cfg).map_err(storage)?;
+        let (provider,service)=settings.model3d_route(record["model_id"].as_str()).map_err(bad)?;
+        if provider!=record["provider"].as_str().unwrap_or(""){return Err(bad("该任务的供应商配置已改变，请恢复原接入后查询"));}
+        if service.base_url!=record["service_base_url"].as_str().unwrap_or(""){return Err(bad("该任务的接入地址已改变，请恢复原接入后查询"));}
+        let poll=build_poll_maker(&provider,service,task_id.clone()).map_err(bad)?;
+        patch(&st,&base,&job,json!({"status":"running","error":null,"progress":{"phase":"查询原任务","percent":5}})).await.map_err(storage)?;
+        let response=json!({"status":"running","job_id":job,"provider_task_id":task_id});
+        tokio::spawn(async move{let _permit=permit;finish_poll_task(st,base,job,asset,task_id,provider,poll).await;});
+        return Ok((StatusCode::ACCEPTED,Json(response)));
+    }
     if record["provider"]!="tripo"{return Err(bad("不是 Tripo 任务"));}
     if record["status"]=="done"{return Ok((StatusCode::OK,Json(record)));}
     if record["status"]=="failed" {return Err(bad("供应商已确认失败，不能恢复该任务"));}
@@ -343,7 +506,7 @@ pub async fn recover(st:Shared){
             let base=format!("{dir}/{id}");
             for file in st.store.list_files(&format!("{base}/jobs/")).await.unwrap_or_default(){
                 let Ok(r)=st.store.get_json(&format!("{base}/jobs/{file}")).await else{continue};
-                if !["tripo","tripo_studio","meshy"].contains(&r["provider"].as_str().unwrap_or("")) || r["status"]!="running" || r["started_at"].as_u64().unwrap_or(u64::MAX)>=cutoff {continue;}
+                if !["tripo","tripo_studio","meshy","rodin","hi3d","hunyuan3d"].contains(&r["provider"].as_str().unwrap_or("")) || r["status"]!="running" || r["started_at"].as_u64().unwrap_or(u64::MAX)>=cutoff {continue;}
                 let job=file.trim_end_matches(".json").to_string();
                 // User can resume waiting jobs explicitly; startup just makes interrupted work visible.
                 let has_task=r["provider_task_id"].is_string() || r["runner_id"].is_string();

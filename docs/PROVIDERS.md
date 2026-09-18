@@ -1,22 +1,32 @@
-# 3D 生成供应商官方接口对照（2026-09-17 逐家核对）
+# 3D 生成供应商官方接口对照（2026-09-17 逐家核对；09-18 五家全部接入）
 
-> 这是 `web/src/providers.rs` 注册表的依据。五家的端点、鉴权、任务模型均按官方文档核实。
-> 对接进度：**Tripo、Meshy 已接入生成链路**；Rodin / Hunyuan3D / Hi3D 端点已核对、
-> 后台可配 Key，传输层按 `web/src/meshy.rs` 的模式逐家补齐。
+> 这是 `web/src/providers.rs` 注册表的依据。五家的端点、鉴权、任务模型均按官方文档核实，
+> 且**全部接入生成链路**（Tripo 走 `tripo.rs`，其余四家各有独立传输层）。
 
 ## 总览
 
 | 供应商 | 官方端点 | 鉴权 | Key 格式 / 获取 | 传输层 |
 |---|---|---|---|---|
-| Tripo 3D | `https://openapi.tripo3d.ai/v3` | `Authorization: Bearer <key>` | platform.tripo3d.ai 开发者后台 | ✅ 已接入 |
-| Meshy | `https://api.meshy.ai/openapi/v2` | `Authorization: Bearer msy_…` | meshy.ai/settings/api | ✅ 已接入 |
-| Rodin (Hyper3D) | `https://api.hyper3d.com/api/v2` | `Authorization: Bearer <key>` | developer.hyper3d.ai 的 API Key 管理 | ⏳ 待接入 |
-| Hunyuan3D | `https://ai3d.tencentcloudapi.com` | **腾讯云 TC3 签名**（SecretId + SecretKey） | 腾讯云 CAM 密钥（需 QcloudAI3DFullAccess） | ⏳ 待接入 |
-| Hi3D (Hitem3D) | `https://api.hitem3d.ai/open-api/v1` | `Authorization: Bearer <accessToken>` | Hitem3D 开放平台 | ⏳ 待接入 |
+| Tripo 3D | `https://openapi.tripo3d.ai/v3` | `Authorization: Bearer <key>` | platform.tripo3d.ai 开发者后台 | ✅ `tripo.rs` |
+| Meshy | `https://api.meshy.ai/openapi/v2` | `Authorization: Bearer msy_…` | meshy.ai/settings/api | ✅ `meshy.rs` |
+| Rodin (Hyper3D) | `https://api.hyper3d.com/api/v2` | `Authorization: Bearer <key>` | developer.hyper3d.ai 的 API Key 管理 | ✅ `rodin.rs` |
+| Hunyuan3D | `https://ai3d.tencentcloudapi.com` | **腾讯云 TC3 签名**（SecretId + SecretKey） | 腾讯云 CAM 密钥（需 QcloudAI3DFullAccess）；**后台 Key 栏填 `SecretId:SecretKey`（英文冒号）** | ✅ `hunyuan.rs` |
+| Hi3D (Hitem3D) | `https://api.hitem3d.ai/open-api/v1` | `Authorization: Bearer <accessToken>` | Hitem3D 开放平台 | ✅ `hi3d.rs` |
 
-后台「模型配置管理」可以为全部五家填写 Key 并启停模型；环境变量（`TRIPO_API_KEY`、
-`MESHY_API_KEY`、`RODIN_API_KEY`、`HUNYUAN_SECRET_ID`、`HITEM3D_API_KEY`）只作为
-**首次登记时的初值**，保存过一次后以目录里存的为准。
+后台「模型配置管理」可以为全部五家填写 Key 并启停模型；环境变量只作为
+**首次登记时的初值**（`TRIPO_API_KEY`、`MESHY_API_KEY`、`RODIN_API_KEY`、
+`HUNYUAN_SECRET_ID` + `HUNYUAN_SECRET_KEY`（两段都要有）、`HITEM3D_API_KEY`），
+保存过一次后以目录里存的为准。混元的服务地域用 `HUNYUAN_REGION` 覆盖（默认 `ap-guangzhou`）。
+
+## 各家能力与限制（生成入口会如实校验）
+
+| | 文字→3D | 单图→3D | 多视图 | 备注 |
+|---|---|---|---|---|
+| Tripo | ✅ | ✅ | ✅（四视图） | 订阅模式另有高质量选项 |
+| Meshy | ✅ | ✅ | ❌ | 资产只保留 3 天，完成即落盘；有官方测试 Key |
+| Rodin | ✅ | ✅ | ❌ | tier 必须显式传（缺省会回落到 Gen-1/1.5） |
+| Hunyuan3D | ✅（≤200 字） | ✅ | ❌ | 图片编码后 ≤6MB；任务号 24 小时有效 |
+| Hi3D | ❌（官方要求必须有输入图片） | ✅ | ❌ | 下载链接 1 小时有效；PBR 仅 v2.0/v2.1/v3.0 |
 
 ## 逐家说明
 
