@@ -12,15 +12,15 @@ async function api(url,method='GET',body){const r=await fetch(url,{method,cache:
 async function action(fn,success){try{await fn();message(success);await render(false);}catch(e){message(e.message,true);}}
 function modal(title,fields,submit){dialog.innerHTML=`<h2>${esc(title)}</h2><form class="admin-form">${fields}<p data-error class="admin-message error" role="status"></p><div class="dialog-actions"><button type="button" data-close>取消</button><button type="submit" class="primary">保存</button></div></form>`;dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.querySelector('form').onsubmit=async e=>{e.preventDefault();const b=dialog.querySelector('button[type=submit]');b.disabled=true;dialog.querySelector('[data-error]').textContent='';try{await submit(new FormData(e.target));e.target.reset();dialog.close();message('已保存');await render(false);}catch(err){dialog.querySelector('[data-error]').textContent=err.message;}finally{b.disabled=false;}};dialog.showModal();}
 function userDialog(user){modal(user?'编辑账号':'创建账号',`${user?`<p>${esc(user.username)}</p>`:'<label>账号<input name="username" autocomplete="off" pattern="[a-zA-Z0-9_][a-zA-Z0-9_-]{2,31}" required minlength="3" maxlength="32" placeholder="3–32位字母、数字或下划线"></label>'}<label>显示名称<input name="display_name" maxlength="40" value="${esc(user?.display_name||'')}" placeholder="可选"></label><label>角色<select name="role" ${user?.id===currentUser.id?'disabled':''}><option value="member" ${user?.role==='member'?'selected':''}>成员 · 创作与共享资产</option><option value="admin" ${user?.role==='admin'?'selected':''}>管理员 · 账号与全部设置</option></select></label>${user?'':'<label>初始密码<input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="128" placeholder="至少12个字符"></label><small class="muted">成员共享当前资产库；注册入口保持关闭。</small>'}`,async f=>{const b=Object.fromEntries(f);await api(user?'/api/admin/users/'+user.id:'/api/admin/users',user?'PATCH':'POST',b);});}
-async function render(reset=true){const turn=++serial;if(reset)message('');content.hidden=tab==='models';$('#admin-models').hidden=tab!=='models';document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));try{
+async function render(reset=true){const turn=++serial;if(reset)message('');content.hidden=false;document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));try{
  if(tab==='appearance'){
   const current=document.documentElement.dataset.theme||'dark';
   content.innerHTML='<h2>界面主题</h2><p>设置当前浏览器的工作台外观。</p><div class="appearance-options">'+[['dark','石墨灰','深色背景，冷白文字'],['light','白色','浅色背景，清晰对比']].map(([value,label,description])=>`<button data-appearance-theme="${value}" aria-pressed="${current===value}"><span class="theme-sample ${value}"></span><strong>${label}</strong><small>${description}</small></button>`).join('')+'</div>';
   content.querySelectorAll('[data-appearance-theme]').forEach(button=>button.onclick=()=>{window.dispatchEvent(new CustomEvent('aigccat-set-theme',{detail:button.dataset.appearanceTheme}));render(false);});return;
  }
- if(tab==='models'){const frame=$('#admin-models iframe');if(!frame.getAttribute('src'))frame.src=frame.dataset.src;return;}
+
  if(tab==='accounts'){const studio=await fetch('/api/studio/status',{signal:AbortSignal.timeout(2500)}).then(r=>r.json()).catch(()=>({ready:false}));
-   const [catalog,workbench]=await Promise.all([api('/api/settings/catalog'),api('/api/workbench/state').catch(()=>({}))]);
+   const catalog=await api('/api/settings/catalog');
    if(turn!==serial)return;
   const P=window.AigccatAccounts?.PROVIDERS||{};
   const meta=a=>{const m=P[a.provider];if(m)return m;
@@ -39,25 +39,10 @@ async function render(reset=true){const turn=++serial;if(reset)message('');conte
       ${a.active?'':`<button data-activate>设为当前</button>`}
       <button data-toggle>${a.enabled?'停用':'启用'}</button>
       <button data-remove>删除</button></td></tr>`;}).join('');
-  const modelRows=(catalog.models||[]).map(m=>{const pm=meta({provider:m.provider,kind:'custom'});
-   return `<tr data-model="${esc(m.id)}" data-service="${esc(m.service)}" data-enabled="${m.enabled?1:0}">
-    <td style="display:flex;align-items:center;gap:8px">${logo(pm)}<strong>${esc(m.model)}</strong></td>
-    <td>${esc(meta({provider:m.provider,kind:'custom'}).name)}</td>
-    <td>${svcLabel[m.service]||esc(m.service)}</td>
-    <td><span class="admin-pill ${m.enabled?'':'off'}">${m.enabled?'已启用':'已停用'}${m.default?' · 默认':''}</span></td>
-    <td style="white-space:nowrap">${m.default?'—':`<button data-mtoggle>${m.enabled?'停用':'启用'}</button><button data-mdefault>设为默认</button>`}</td></tr>`;}).join('');
-  const c=(workbench.creation||{});
   content.innerHTML=`<div class="admin-toolbar"><h2>AI 账号</h2><button id="add-account" class="primary">＋ 添加 AI 账号</button></div>
-   <p>每家供应商可保存多条账号（订阅 / API Key / 自定义模型服务）。「当前」账号用于生成；接口地址默认官方，可改中转。</p>
+   <p>模型与凭据统一在这里管理：每家可存多条账号（订阅 / API Key / 自定义模型服务），「当前」账号用于生成；接口地址默认官方、可改中转。</p>
    <p class="table-mobile-hint">左右滑动可查看完整列表。</p>
-   <div class="table-scroll"><table class="admin-table"><thead><tr><th>账号</th><th>平台</th><th>类型</th><th>状态</th><th>操作</th></tr></thead><tbody id="account-rows">${rows||'<tr><td colspan="5" class="admin-empty">还没有账号，点右上角添加</td></tr>'}</tbody></table></div>
-   <div class="admin-toolbar" style="margin-top:22px"><h2>模型开关与配置</h2><span style="font-size:12px;color:var(--muted)">停用/设为默认立即生效；账号添加的模型也在这里管理</span></div>
-   <div class="table-scroll"><table class="admin-table"><thead><tr><th>模型</th><th>平台</th><th>能力</th><th>状态</th><th>操作</th></tr></thead><tbody id="model-rows">${modelRows}</tbody></table></div>
-   <div class="admin-toolbar" style="margin-top:22px"><h2>首页创作设置</h2></div>
-   <form id="creation-form" class="admin-form"><label style="display:flex;align-items:center;gap:8px"><input name="allowMultiple" type="checkbox" style="width:auto" ${c.allowMultiple===true?'checked':''}>开启多方案生成</label>
-    <label>每次方案组数<select name="count">${[1,2,3,4].map(n=>`<option ${c.count===n?'selected':''}>${n}</option>`).join('')}</select></label>
-    <label>参考图画幅<select name="ratio">${['16:9','1:1','9:16','4:3','3:4'].map(r=>`<option ${(c.ratio||'16:9')===r?'selected':''}>${r}</option>`).join('')}</select></label>
-    <button type="submit" class="primary">保存创作设置</button><small class="muted">每组生成正/背/左/右四张参考图；多方案会增加生成次数与费用。</small></form>`;
+   <div class="table-scroll"><table class="admin-table"><thead><tr><th>账号</th><th>平台</th><th>类型</th><th>状态</th><th>操作</th></tr></thead><tbody id="account-rows">${rows||'<tr><td colspan="5" class="admin-empty">还没有账号，点右上角添加</td></tr>'}</tbody></table></div>`;
   $('#add-account').onclick=()=>window.AigccatAccounts?.openAddAccount({onSaved:()=>{message('已保存');render(false);}});
   $('#account-rows').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const tr=b.closest('tr');const id=tr.dataset.id;
    try{
@@ -66,18 +51,6 @@ async function render(reset=true){const turn=++serial;if(reset)message('');conte
     else if(b.hasAttribute('data-remove')){if(!confirm('删除该账号？订阅账号的登录会话存档会一并删除。'))return;await api('/api/settings/accounts/'+id,'DELETE');message('已删除');}
     render(false);
    }catch(err){message(err.message,true);}};
-  // 模型开关与配置：GET→改→PUT 整个目录（服务端会忽略回传的账号字段并保留已存 Key）
-  $('#model-rows').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const tr=b.closest('tr');const mid=tr.dataset.model;
-   try{const cat=await api('/api/settings/catalog');
-    const m=cat.models.find(x=>x.id===mid);if(!m)throw Error('模型不存在');
-    if(b.hasAttribute('data-mtoggle')){m.enabled=tr.dataset.enabled!=='1';if(!m.enabled&&m.default)throw Error('默认模型不能停用，请先把默认让给其他模型');}
-    else if(b.hasAttribute('data-mdefault')){cat.models.forEach(x=>{if(x.service===m.service)x.default=false;});m.default=true;m.enabled=true;}
-    await api('/api/settings/catalog','PUT',cat);
-    message('模型配置已保存');render(false);
-   }catch(err){message(err.message,true);}};
-  $('#creation-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);
-   try{await api('/api/workbench/state','PUT',{creation:{allowMultiple:f.get('allowMultiple')==='on',count:Number(f.get('count')),ratio:String(f.get('ratio'))}});message('创作设置已保存，首页下次生成生效');}
-   catch(err){message(err.message,true);}};
   return;}
  if(tab==='overview'){const o=await api('/api/admin/overview');if(turn!==serial)return;content.innerHTML=`<h2>工作区概览</h2><div class="admin-stats">${[[o.users,'全部账号'],[o.enabled,'已启用'],[o.sessions,'有效登录会话']].map(([n,l])=>`<div class="admin-stat"><span>${l}</span><strong>${n}</strong></div>`).join('')}</div><div class="admin-note"><strong>公开注册 · 已关闭</strong><p>访客无法自行注册。需要新账号时，由管理员在账号管理中创建。</p><button id="go-users">管理账号 →</button></div><div class="admin-note"><strong>共享创作空间</strong><p>成员可以创作和管理共享资产；账号管理与模型服务配置由管理员负责。</p></div>`;$('#go-users').onclick=()=>{location.hash='users';};}
  if(tab==='users'){const result=await api('/api/admin/users');if(turn!==serial)return;content.innerHTML='<div class="admin-toolbar"><h2>账号管理</h2><button id="add-user" class="primary">＋ 创建账号</button></div><div class="admin-toolbar"><input id="user-search" type="search" aria-label="搜索账号" placeholder="搜索账号或名称"></div><p class="table-mobile-hint">左右滑动可查看完整列表。</p><div class="table-scroll"><table class="admin-table"><thead><tr><th>账号</th><th>角色</th><th>状态</th><th>最近登录</th><th>操作</th></tr></thead><tbody id="user-rows"></tbody></table></div>';$('#add-user').onclick=()=>userDialog();const draw=()=>{const query=$('#user-search').value.toLowerCase();$('#user-rows').innerHTML=result.users.filter(u=>(u.username+' '+u.display_name).toLowerCase().includes(query)).map(u=>`<tr><td><strong>${esc(u.display_name||u.username)}</strong><small>${esc(u.username)}${u.id===currentUser.id?' · 当前账号':''}</small></td><td>${u.role==='admin'?'管理员':'成员'}</td><td><span class="admin-pill ${u.enabled?'':'off'}">${u.enabled?'已启用':'已停用'}</span></td><td>${esc(date(u.last_login))}</td><td><button data-edit="${u.id}">编辑</button>${u.id!==currentUser.id?`<button data-reset="${u.id}">重置密码</button><button data-toggle="${u.id}">${u.enabled?'停用':'启用'}</button>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="admin-empty">没有匹配的账号</td></tr>';};$('#user-search').oninput=draw;draw();$('#user-rows').onclick=e=>{const b=e.target.closest('button');if(!b)return;const id=b.dataset.edit||b.dataset.reset||b.dataset.toggle,u=result.users.find(x=>x.id===id);if(b.dataset.edit)userDialog(u);if(b.dataset.reset)modal('重置 '+u.username+' 的密码','<p>保存后，该账号的所有旧登录会话将退出。</p><label>新密码<input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="128"></label>',f=>api('/api/admin/users/'+id+'/password','POST',Object.fromEntries(f)));if(b.dataset.toggle)modal((u.enabled?'停用 ':'启用 ')+u.username,`<p>${u.enabled?'该账号将立即退出所有设备，启用后可重新登录。':'恢复该账号的登录与工作区访问。'}</p>`,()=>api('/api/admin/users/'+id,'PATCH',{enabled:!u.enabled}));};}
@@ -86,7 +59,7 @@ async function render(reset=true){const turn=++serial;if(reset)message('');conte
  }catch(e){if(turn===serial){message(e.message,true);content.textContent='内容未能加载，请刷新重试。';}}}
 function route(){
  if(!currentUser)return;
- const allowed=currentUser.role==='admin'?['overview','users','accounts','security','models','appearance','audit']:['security','appearance'];
+ const allowed=currentUser.role==='admin'?['overview','users','accounts','security','appearance','audit']:['security','appearance'];
  const requested=location.hash.slice(1);tab=allowed.includes(requested)?requested:allowed[0];
  if(requested!==tab)history.replaceState(null,'','#'+tab);
  render();

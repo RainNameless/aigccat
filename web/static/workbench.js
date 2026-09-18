@@ -15,6 +15,7 @@ import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { starterPresets, loadPresets, savePresets } from './creative-presets.js?v=1';
 import { PROVIDERS, openAddAccount, openSubscription } from './accounts.js?v=4';
+import { mountCreationSettings } from './creation-settings.js?v=2';
 
 const $ = (id) => document.getElementById(id);
 const esc = (value) =>
@@ -610,7 +611,8 @@ function renderParameters() {
     html = promptBox() + promptActions() +
       field('图像模型',select('imageModelId',imageModels.length?imageModels.map(m=>[m.id,esc(m.model)]):[['','暂无可用模型']])) +
       field('目标分辨率',choices('imageResolution',[['1080','1080p'],['2048','2K'],['3840','4K']])) +
-      '<p class="help-line">四张独立图片 · 正面 / 背面 / 左侧 / 右侧</p>';
+      '<p class="help-line">四张独立图片 · 正面 / 背面 / 左侧 / 右侧</p>' +
+      '<button id="creation-settings" class="full">创作设置 · 多方案与画幅</button>';
     action = '生成四视图';
     context = `${creationOptions.allowMultiple?creationOptions.count:1} 组 × 4 张参考图 · ${form.imageResolution==='1080'?'1080p':form.imageResolution==='2048'?'2K':'4K'}`;
   } else if (tool === "model") {
@@ -889,6 +891,7 @@ function renderParameters() {
   $('open-rig-agent')?.addEventListener('click',safe(showRigAgent));
   $('studio-human-rig')?.addEventListener('click',safe(()=>exclusive(()=>studioProcess('rig'))));
   $('connect-session')?.addEventListener('click',safe(()=>openConnectDialog()));
+  mountCreationSettings();  // 图片面板的「创作设置」按钮（每次重渲染后重挂）
   $('add-ai-account')?.addEventListener('click',safe(()=>openAddAccount({ onSaved: async (r) => {
     // 保存 Key / 连上订阅后：重拉目录（key_configured 会变）并重渲染面板
     if (r.type === 'apikey') { modelCatalog = await api('/api/settings/catalog').catch(()=>({models:[],providers:[]})); renderParameters(); toast('Key 已保存'); }
