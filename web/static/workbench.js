@@ -10,7 +10,7 @@ import { studioMotions, motionCategories } from './studio-motions.js?v=1';
 import { moveToTrash, trashResult } from './asset-trash.js?v=2';
 import { mountModelActions } from './model-actions.js?v=5';
 import * as THREE from "three";
-import { viewerTools } from "./viewer.js?v=opened-cache-19";
+import { viewerTools } from "./viewer.js?v=opened-cache-20";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { starterPresets, loadPresets, savePresets } from './creative-presets.js?v=1';
@@ -497,6 +497,21 @@ function numeric(name, min, max, step = 1) {
 function toggle(name, label) {
   return `<label class="toggle">${label}<input type="checkbox" data-field="${name}" ${form[name] ? "checked" : ""}></label>`;
 }
+// Model-generation help only; native disclosures work with keyboard and touch,
+// and live outside labels so opening help never toggles a generation option.
+const MODEL_PARAMETER_HELP = {
+  faces: ['目标面数', '控制生成网格的面数预算；“自动”交由服务决定。', '原型、远景和实时场景可先尝试较低面数；近景或复杂轮廓可适当提高。', '更多面通常增加文件和渲染负担，不保证质量更好；最终面数以生成结果为准。'],
+  geometry: ['几何精度', '控制形状细节的生成档位，不是贴图清晰度。', '标准适合先验证造型；高精度适合近景、复杂轮廓和细小结构。', '高精度不能修复参考图之间的矛盾。当前工作台仅在网页订阅的 v3.1 提供此项。'],
+  quad: ['四边面拓扑', '请求以四边形组织网格；三角面则常用于实时渲染。', '需要继续编辑、细分或调整变形时，可尝试四边面。', '不保证布线适合动画，也不代表运行更快。当前 GLB 导出不保留四边面原语，不能据此保证下载后仍为四边面。'],
+  texture: ['生成纹理', '为模型生成表面颜色和图案。', '希望直接预览外观时开启；先检查形状、之后自行贴图时可关闭。', '关闭后本次不请求纹理，PBR 和贴图相关选项也不参与提交。纹理细节不能替代真实几何结构。'],
+  pbr: ['PBR 材质', '通过金属度、粗糙度等信息描述表面对光照的响应。', '需要表现不同材质，例如金属与塑料的区别时使用。', '需要开启生成纹理；效果还取决于贴图、灯光和渲染器，并不保证一定更真实。'],
+  quality: ['贴图质量', '控制纹理生成的质量档位，与导出尺寸不同。', '标准适合预览和一般用途；极高可用于近景纹理细节要求较高的资产。', '更高档位不保证消除错位或接缝；应检查实际生成结果。'],
+  size: ['导出贴图尺寸', '设置导出纹理的目标尺寸：2K / 4K / 8K。', '远景与原型可先用较小尺寸；近景展示可尝试较大尺寸。', '较大尺寸通常占用更多存储与显存。此项作用于导出，不保证增加生成细节，实际尺寸以结果为准。'],
+};
+function modelParameterHelp(key) {
+  const [title, meaning, use, tradeoff] = MODEL_PARAMETER_HELP[key];
+  return `<details class="model-parameter-help"><summary aria-label="${esc(title)}说明">${esc(title)} · 说明</summary><dl><dt>是什么</dt><dd>${esc(meaning)}</dd><dt>何时使用</dt><dd>${esc(use)}</dd><dt>取舍与限制</dt><dd>${esc(tradeoff)}</dd></dl></details>`;
+}
 function uploadBox(view, label, small = false) {
   return `<button class="drop-zone ${small ? "small" : ""}" data-upload="${view}" title="${label}" aria-label="${label}">${uploads[view]?.url ? `<img src="${uploads[view].url}" alt="${label}">` : `${icon(view === 'batch' ? 'gallery-horizontal-end' : 'file-image')}<span>${uploads[view]?.files ? uploads[view].files.length + ' 张参考图' : label}</span>`}</button>`;
 }
@@ -638,9 +653,10 @@ function renderParameters() {
       field('资产名称（可选）', `<input class="full" data-field="assetName" aria-label="资产名称" placeholder="留空使用资源 ID" value="${esc(form.assetName)}">${current?'<button id="save-asset-name" class="full">保存名称</button>':''}`) +
       (!current ? field('资产分类',select('assetType',Object.entries(TYPES).map(([k,v])=>[k,v[0]]))) : '') +
       field('3D 模型',select(studio?'studioModel':'tripoModel',models.map(m=>[m.id,esc(m.model.startsWith('P1')?'P1 · 低多边形':m.model)]))) +
-      field('目标面数',select('tripoFaces',[['','自动（由模型决定）'],...[500,2000,5000,10000,20000,50000,100000,500000,1000000,1500000,2000000].filter(n=>n<=maxFaces).map(n=>[String(n),n.toLocaleString()])])) +
-      (studio ? (form.studioModel==='v3.1-20260211'?field('几何精度',select('geometryQuality',[['','标准'],['detailed','高精度 · 更多细节']])):'') + toggle('modelQuad','四边面拓扑') : '') +
-      toggle('tripoTexture','生成纹理') + (form.tripoTexture ? toggle('tripoPbr','PBR 材质') + (studio ? field('贴图质量',select('textureQuality',[['standard','标准'],['extreme','极高 · 细节优先']])) + field('导出贴图尺寸',choices('textureSize',[['2048','2K'],['4096','4K'],['8192','8K']])) + '<p class="help-line">尺寸为导出目标；实际细节取决于生成结果。高精度与高质量贴图会增加积分和等待时间。</p>' : '') : '') +
+      field('目标面数',select('tripoFaces',[['','自动（由模型决定）'],...[500,2000,5000,10000,20000,50000,100000,500000,1000000,1500000,2000000].filter(n=>n<=maxFaces).map(n=>[String(n),n.toLocaleString()])])) + modelParameterHelp('faces') +
+      (studio ? (form.studioModel==='v3.1-20260211'?field('几何精度',select('geometryQuality',[['','标准'],['detailed','高精度 · 更多细节']])) + modelParameterHelp('geometry'):'') + toggle('modelQuad','四边面拓扑') + modelParameterHelp('quad') : '') +
+      toggle('tripoTexture','生成纹理') + modelParameterHelp('texture') + (form.tripoTexture ? toggle('tripoPbr','PBR 材质') + modelParameterHelp('pbr') + (studio ? field('贴图质量',select('textureQuality',[['standard','标准'],['extreme','极高 · 细节优先']])) + modelParameterHelp('quality') + field('导出贴图尺寸',choices('textureSize',[['2048','2K'],['4096','4K'],['8192','8K']])) + modelParameterHelp('size') + '<p class="help-line">不同生成档位可能影响耗时与费用，具体以当前服务规则为准。</p>' : '') : '') +
+      `<p class="help-line">${studio ? '网页订阅积分' : 'API 额度'} · 当前配置费用待确认，以对应服务计费为准。</p>` +
       (studio && studioHealth && !studioHealth.ready ? '<button id="connect-session" class="full">连接网页订阅 · 点击登录</button>' : '') +
       `<a class="help-line" href="/settings.html">${studio?"模型设置":"模型配置 · 地址与 Key"}</a><p class="help-line">${form.mode==='batch'?'每张图片生成一个独立资产，依次执行，失败后停止。':(studio?'使用网页订阅积分，后台自动生成、下载并保存到当前资产。':'直接调用 Tripo，完成后保存模型和新版本。')}${version?'重新生成会保留现有版本。':''}</p>` +
       (version ? '<button id="review-model">查看模型四视图</button>' : '');

@@ -303,6 +303,48 @@ small,
   font-weight: normal;
   margin-top: 4px;
 }
+.model-parameter-help {
+  margin: 4px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.model-parameter-help summary {
+  cursor: pointer;
+  padding: 4px 2px;
+  min-height: 28px;
+  border-radius: 4px;
+  touch-action: manipulation;
+}
+.model-parameter-help summary:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+.model-parameter-help summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.model-parameter-help[open] {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.model-parameter-help dl {
+  margin: 6px 0 0;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--surface);
+  line-height: 1.65;
+}
+.model-parameter-help dt {
+  color: var(--text);
+  font-weight: 600;
+}
+.model-parameter-help dd {
+  margin: 2px 0 8px;
+}
+.model-parameter-help dd:last-child {
+  margin-bottom: 0;
+}
 .full {
   width: 100%;
 }
