@@ -255,7 +255,8 @@ export async function openAddAccount({ onSaved } = {}) {
        <label>API Key<input data-cust="key" type="password" autocomplete="new-password" placeholder="服务的 API Key"></label>
        <label>指定文字模型名（可选）<input data-cust="text_model" placeholder="留空 = 自动导入上游全部模型" spellcheck="false"></label>
        <label>指定生图模型名（可选）<input data-cust="image_model" placeholder="留空 = 按名字自动归类" spellcheck="false"></label>
-       <p class="acct-note">保存时会自动读取上游的模型清单（/models）并全部导入：名字带 image / flux / seedream 等的归「生图」，进「图片创作」；其余归「文字」。「设为当前」开启时，导入后平台立即切到它。</p>
+       <label>指定视觉模型名（可选）<input data-cust="vision_model" placeholder="识图模型（如 gpt-4o）；留空 = 不分配" spellcheck="false"></label>
+       <p class="acct-note">保存时自动读取上游 /models 并全部导入：名字带 image / flux / seedream 等的归「生图」（进图片创作），其余归「文字」；识图模型识别不了，用上面的框显式指定。「设为当前」开启时，导入后平台立即切到它。</p>
        <label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input data-cust="set_default" type="checkbox" checked style="width:auto">设为当前使用</label>
        <div class="acct-actions"><button data-save class="primary" disabled>保存账号</button><button data-close>关闭</button></div>`;
     host.append(box);
@@ -276,6 +277,7 @@ export async function openAddAccount({ onSaved } = {}) {
           provider: "custom", kind: "custom",
           api_key: v.key.trim(), base_url: v.base_url.trim(),
           text_model: v.text_model.trim() || null, image_model: v.image_model.trim() || null,
+          vision_model: v.vision_model.trim() || null,
           set_default: box.querySelector('[data-cust="set_default"]').checked,
         });
         closeModal();

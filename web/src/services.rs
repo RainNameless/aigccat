@@ -722,13 +722,13 @@ fn sync_active_key(catalog: &mut Catalog, provider: &str) {
         }
     }
 }
-/// 把 catalog 里 text/image 的默认模型同步到顶层服务槽（工作台的图片创作/对话用的是它们）。
+/// 把 catalog 里 text/image/vision 的默认模型同步到顶层服务槽（工作台的图片创作/识图用的是它们）。
 fn sync_default_services(settings: &mut Services) {
     let catalog = settings.catalog.clone().unwrap_or_default();
-    for kind in ["text","image"] {
+    for kind in ["text","image","vision"] {
         if let Some(m) = catalog.models.iter().find(|m| m.service==kind && m.default && m.enabled) {
             if let Ok((_,s)) = catalog.resolve(&m.id) {
-                match kind { "text"=>settings.text=s, "image"=>settings.image=s, _=>{} }
+                match kind { "text"=>settings.text=s, "image"=>settings.image=s, "vision"=>settings.vision=Some(s), _=>{} }
             }
         }
     }
@@ -766,7 +766,8 @@ fn looks_like_image_model(name: &str) -> bool {
 #[derive(Deserialize)]
 pub struct AccountCreate { name: Option<String>, provider: String, kind: String, api_key: Option<String>,
     #[serde(default)] base_url: Option<String>, #[serde(default)] text_model: Option<String>,
-    #[serde(default)] image_model: Option<String>, #[serde(default)] set_default: Option<bool> }
+    #[serde(default)] image_model: Option<String>, #[serde(default)] vision_model: Option<String>,
+    #[serde(default)] set_default: Option<bool> }
 pub async fn post_account(State(st): State<Arc<AppState>>, headers: HeaderMap, payload: Result<Json<AccountCreate>, axum::extract::rejection::JsonRejection>) -> ApiResult {
     if !same_origin(&headers) { return Err((StatusCode::FORBIDDEN,"配置变更要求同源 Origin".into())); }
     let Json(req) = payload.map_err(|_|(StatusCode::BAD_REQUEST,"账号请求格式无效".into()))?;
@@ -784,13 +785,20 @@ pub async fn post_account(State(st): State<Arc<AppState>>, headers: HeaderMap, p
         let key = req.api_key.as_deref().map(str::trim).filter(|s| !s.is_empty()).ok_or_else(|| bad("API Key 不能为空"))?.to_string();
         let text_model = req.text_model.as_deref().map(str::trim).filter(|s| !s.is_empty());
         let image_model = req.image_model.as_deref().map(str::trim).filter(|s| !s.is_empty());
-        let mut entries: Vec<(bool, String)> = Vec::new();
-        if let Some(t) = text_model { entries.push((false, t.to_string())); }
-        if let Some(i) = image_model { entries.push((true, i.to_string())); }
+        let vision_model = req.vision_model.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        // (服务类型, 模型名)：text=文字 / image=生图 / vision=识图。
+        // 显式填的优先；其余从上游 /models 自动导入 —— 名字像生图归 image，其余归 text
+        // （识图模型无法靠名字判断，只能显式指定）。
+        let mut entries: Vec<(&str, String)> = Vec::new();
+        if let Some(t) = text_model { entries.push(("text", t.to_string())); }
+        if let Some(i) = image_model { entries.push(("image", i.to_string())); }
+        if let Some(v) = vision_model { entries.push(("vision", v.to_string())); }
         match fetch_openai_models(url.as_str(), &key).await {
             Ok(list) => {
                 for name in list {
-                    if !entries.iter().any(|(_, n)| n == &name) { entries.push((looks_like_image_model(&name), name)); }
+                    if !entries.iter().any(|(_, n)| n == &name) {
+                        entries.push((if looks_like_image_model(&name) { "image" } else { "text" }, name));
+                    }
                 }
             }
             Err(e) => {
@@ -812,11 +820,10 @@ pub async fn post_account(State(st): State<Arc<AppState>>, headers: HeaderMap, p
         catalog.providers.push(Provider { id: pid.clone(), name: name.clone(), base_url: base.clone(), api_key: key.clone() });
         let set_default = req.set_default.unwrap_or(true);
         let mut got_default = std::collections::HashSet::new();
-        for (i, (is_image, model)) in entries.iter().enumerate() {
-            let svc = if *is_image { "image" } else { "text" };
+        for (i, (svc, model)) in entries.iter().enumerate() {
             let default = set_default && !got_default.contains(svc);
-            if default { catalog.models.iter_mut().for_each(|m| if m.service==svc { m.default=false; }); got_default.insert(svc); }
-            catalog.models.push(ModelEntry { id: format!("{pid}-m-{i}"), provider: pid.clone(), model: model.clone(), service: svc.into(), enabled: true, default });
+            if default { catalog.models.iter_mut().for_each(|m| if m.service==*svc { m.default=false; }); got_default.insert(*svc); }
+            catalog.models.push(ModelEntry { id: format!("{pid}-m-{i}"), provider: pid.clone(), model: model.clone(), service: svc.to_string(), enabled: true, default });
         }
         let id = format!("acct-{now}-{}", catalog.accounts.len() as u64 + 1);
         catalog.accounts.push(Account { id: id.clone(), name, provider: pid, kind: "custom".into(), api_key: key, base_url: base, enabled: true, active: set_default, created_at: now });
@@ -881,7 +888,7 @@ pub async fn patch_account(State(st): State<Arc<AppState>>, headers: HeaderMap, 
             "subscription" => activate_session_file(&studio_session_slot(&id)).map_err(|e| bad(&e))?,
             // 自定义接入：它的模型成为 text / image 的默认，平台（图片创作 / 对话）随之切换
             _ => {
-                for svc in ["text","image"] {
+                for svc in ["text","image","vision"] {
                     let target = catalog.models.iter().position(|m| m.provider==provider && m.service==svc);
                     if let Some(idx) = target {
                         catalog.models.iter_mut().for_each(|x| if x.service==svc { x.default=false; });
@@ -896,7 +903,7 @@ pub async fn patch_account(State(st): State<Arc<AppState>>, headers: HeaderMap, 
         let was_default = catalog.models.iter().any(|m| m.provider==provider && m.default);
         for m in catalog.models.iter_mut() { if m.provider==provider { m.enabled=false; m.default=false; } }
         if was_default {
-            for svc in ["text","image"] {
+            for svc in ["text","image","vision"] {
                 if let Some(other) = catalog.models.iter().find(|m| m.service==svc && m.enabled).cloned() {
                     if let Some(m) = catalog.models.iter_mut().find(|m| m.id==other.id) { m.default=true; }
                 }
@@ -937,7 +944,7 @@ pub async fn delete_account(State(st): State<Arc<AppState>>, headers: HeaderMap,
         catalog.models.retain(|m| m.provider!=target.provider);
         catalog.providers.retain(|p| p.id!=target.provider);
         if was_default {
-            for svc in ["text","image"] {
+            for svc in ["text","image","vision"] {
                 if let Some(other) = catalog.models.iter().find(|m| m.service==svc && m.enabled).cloned() {
                     if let Some(m) = catalog.models.iter_mut().find(|m| m.id==other.id) { m.default=true; }
                 }

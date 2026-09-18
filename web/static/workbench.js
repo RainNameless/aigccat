@@ -14,7 +14,7 @@ import { viewerTools } from "./viewer.js?v=opened-cache-19";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { starterPresets, loadPresets, savePresets } from './creative-presets.js?v=1';
-import { PROVIDERS, openAddAccount, openSubscription } from './accounts.js?v=5';
+import { PROVIDERS, openAddAccount, openSubscription } from './accounts.js?v=6';
 import { mountCreationSettings } from './creation-settings.js?v=2';
 
 const $ = (id) => document.getElementById(id);
@@ -33,17 +33,19 @@ function providerMeta(pid, fallbackName) {
   return PROVIDERS[pid] || { name: fallbackName || pid, color: "#888888", svg: '<circle cx="12" cy="12" r="8"/>' };
 }
 /* 供应商选择：分段式图标按钮（参考 sub2api 添加账号时的平台选择控件）。
-   未配置 Key 的供应商会标出来但仍可选 —— 方便先选再看提示，而不是直接消失。 */
+   Tripo 的当前账号若是订阅，卡片直接标「订阅」且视为已配置。 */
 function providerPicker(catalog, activeProvider) {
   const models = catalog.models.filter((m) => m.enabled && m.service === "model3d");
   const used = [...new Set(models.map((m) => m.provider))];
+  const tripSub = (catalog.accounts||[]).find((a) => a.provider === "tripo" && a.kind === "subscription" && a.active && a.enabled);
   const buttons = used
     .map((pid) => {
       const p = catalog.providers.find((x) => x.id === pid);
       const meta = providerMeta(pid, p?.name);
       const active = String(activeProvider) === String(pid);
-      const configured = !!p?.key_configured;
-      return `<button type="button" title="${esc(meta.name)}${configured ? "" : " · 未配置 Key，生成前需在模型配置里填写"}" data-choice="modelProvider" data-value="${esc(pid)}" class="${active ? "active" : ""}" ${configured ? "" : 'data-unconfigured="1"'} style="--provider-color:${meta.color}" aria-pressed="${active}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${meta.svg}</svg><span>${esc(meta.name)}</span>${configured ? "" : "<em>未配置</em>"}</button>`;
+      const isSub = pid === "tripo" && !!tripSub;
+      const configured = isSub || !!p?.key_configured;
+      return `<button type="button" title="${esc(meta.name)}${isSub ? " · 当前用订阅积分" : configured ? "" : " · 未添加账号，先到「添加 AI 账号」"}" data-choice="modelProvider" data-value="${esc(pid)}" class="${active ? "active" : ""}" ${configured ? "" : 'data-unconfigured="1"'} style="--provider-color:${meta.color}" aria-pressed="${active}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${meta.svg}</svg><span>${esc(meta.name)}</span>${isSub ? "<em>订阅</em>" : configured ? "" : "<em>未添加</em>"}</button>`;
     })
     .join("");
   return `<div class="provider-picker" role="group" aria-label="生成供应商">${buttons}</div>`;
@@ -213,21 +215,6 @@ async function refreshStudioHealth(){
   const before=studioHealth?.ready;
   try{studioHealth=await api('/api/studio/status');}catch{studioHealth={ready:false,error:'本站服务暂不可达'};}
   renderServiceStatus();
-  // 执行器掉线/恢复时，模型面板里的入口要跟着出现或消失（面板本身不会自动重建）
-  if(before!==studioHealth?.ready)syncConnectEntry();
-}
-// 只在模型面板已渲染时插入/移除「连接网页订阅」按钮，不重建整个面板（避免打断正在输入的内容）
-function syncConnectEntry(){
-  const host=$('parameters');if(!host)return;
-  const existing=host.querySelector('#connect-session');
-  if(!host.querySelector('#prepare-multiview')){existing?.remove();return;}
-  const need=form.modelSource==='studio'&&studioHealth&&!studioHealth.ready;
-  if(need&&!existing){
-    const button=document.createElement('button');
-    button.id='connect-session';button.className='full';button.textContent='连接网页订阅 · 点击登录';
-    button.addEventListener('click',safe(()=>openConnectDialog()));
-    host.querySelector('#prepare-multiview')?.before(button);
-  }else if(!need&&existing){existing.remove();}
 }
 setInterval(refreshStudioHealth,30000);
 setInterval(refreshBlenderHealth,30000);
@@ -616,13 +603,20 @@ function renderParameters() {
     action = '生成四视图';
     context = `${creationOptions.allowMultiple?creationOptions.count:1} 组 × 4 张参考图 · ${form.imageResolution==='1080'?'1080p':form.imageResolution==='2048'?'2K':'4K'}`;
   } else if (tool === "model") {
-    const studio=form.modelSource==='studio';
-    const models = studio ? ['v3.0-20250812','v3.1-20260211','v2.5-20250123'].map(model=>({id:model,model})) : modelCatalog.models.filter(m=>m.enabled && m.service==='model3d');
+    // Tripo 的路由不再让用户手选「订阅/API」：AI 账号里「当前」的 Tripo 账号是订阅就走订阅，
+    // 否则走 API。选哪家建模、每家有什么模型，各家界面完全一致。
+    const tripSubscription = (modelCatalog.accounts||[]).find(a=>a.provider==='tripo' && a.kind==='subscription' && a.active && a.enabled);
+    const providerId = (form.modelProvider && (modelCatalog.models.some(m=>m.provider===form.modelProvider && m.enabled && m.service==='model3d') || form.modelProvider==='tripo'))
+      ? form.modelProvider
+      : (modelCatalog.models.find(m=>m.service==='model3d' && m.default)?.provider || 'tripo');
+    const studio = providerId==='tripo' && !!tripSubscription;
+    form.modelSource = studio ? 'studio' : 'api';   // 仅作提交与状态展示，用户不再手选
+    const models = studio
+      ? ['v3.0-20250812','v3.1-20260211','v2.5-20250123'].map(model=>({id:model,model}))
+      : modelCatalog.models.filter(m=>m.enabled && m.service==='model3d' && m.provider===providerId);
     if (!studio && !models.some(m=>m.id===form.tripoModel)) form.tripoModel=(models.find(m=>m.default)||models[0])?.id||'';
     form.mode='multi';
     const selectedModel=studio?form.studioModel:models.find(m=>m.id===form.tripoModel)?.model;
-    // 当前选中模型属于哪家供应商；切供应商时由事件处理把它带到那家的默认模型
-    const providerId=studio?'tripo':(models.find(m=>m.id===form.tripoModel)?.provider||'');
     form.modelProvider=providerId;
     const isTripo=providerId==='tripo';
     const providerModels=providerModelsOf(modelCatalog,providerId);
@@ -630,16 +624,17 @@ function renderParameters() {
     if(Number(form.tripoFaces)>maxFaces)form.tripoFaces=String(maxFaces);
     if(form.studioModel!=='v3.1-20260211')form.geometryQuality='';
     // 供应商与模型分开选：先挑厂商（带 logo 的卡片），再挑它家的模型 —— 不再是一个混着五家的大下拉
-    const modelSection = studio
-      ? field('Tripo 订阅模型',select('studioModel',models.map(m=>[m.id,esc(m.model)])))
-      : field('生成供应商',providerPicker(modelCatalog,providerId)) +
-        (providerModels.length
+    const modelSection = field('生成供应商',providerPicker(modelCatalog,providerId)) +
+      (studio
+        ? field('Tripo 订阅模型',select('studioModel',models.map(m=>[m.id,esc(m.model)]))) +
+          `<p class="help-line">当前 Tripo 账号是<strong>订阅</strong>（消耗订阅积分）；要改用 API Key，到「AI 账号」里把当前账号切换过去。</p>`
+        : providerModels.length
           ? field('模型',choices('tripoModel',providerModels.map(m=>[m.id,esc(m.model.startsWith('P1')?'P1 · 低多边形':m.model)])))
-          : '<p class="help-line">该供应商暂无启用的模型，请到模型配置里开启。</p>');
-    const faceSection=(studio||isTripo)
+          : '<p class="help-line">该供应商暂无启用的模型，请到 AI 账号里添加账号。</p>');
+    const faceSection=isTripo
       ? field('目标面数',select('tripoFaces',[['','自动（由模型决定）'],...[500,2000,5000,10000,20000,50000,100000,500000,1000000,1500000,2000000].filter(n=>n<=maxFaces).map(n=>[String(n),n.toLocaleString()])]))
       : '<p class="help-line">面数由该供应商按所选模型自动决定。</p>';
-    html = choices('modelSource', [['studio','网页订阅'],['api','API']]) +
+    html =
       '<p class="help-line">先确认多视图，再生成模型。只有一张图？先补齐其他视角。</p>' +
       uploadBox('front','正面参考 · 点击上传') + `<div class="upload-grid">${uploadBox('side','左侧',true)}${uploadBox('back','背面',true)}${uploadBox('right','右侧',true)}</div>` +
       '<button id="prepare-multiview" class="full">从文字或图片生成四视图</button><button id="load-multiview" class="full">从已创建好的四视图加载</button>' +
@@ -648,12 +643,11 @@ function renderParameters() {
       modelSection + faceSection +
       (studio ? (form.studioModel==='v3.1-20260211'?field('几何精度',select('geometryQuality',[['','标准'],['detailed','高精度 · 更多细节']])):'') + toggle('modelQuad','四边面拓扑') : '') +
       toggle('tripoTexture','生成纹理') + (form.tripoTexture ? toggle('tripoPbr','PBR 材质') + (studio ? field('贴图质量',select('textureQuality',[['standard','标准'],['extreme','极高 · 细节优先']])) + field('导出贴图尺寸',choices('textureSize',[['2048','2K'],['4096','4K'],['8192','8K']])) + '<p class="help-line">尺寸为导出目标；实际细节取决于生成结果。高精度与高质量贴图会增加积分和等待时间。</p>' : '') : '') +
-      (studio && studioHealth && !studioHealth.ready ? '<button id="connect-session" class="full">连接网页订阅 · 点击登录</button>' : '') +
-      '<button id="add-ai-account" class="full">＋ 添加 AI 账号（订阅 / API Key）</button>' +
-      `<a class="help-line" href="/settings.html">${studio?"模型设置":"模型配置 · 地址与 Key"}</a><p class="help-line">${form.mode==='batch'?'每张图片生成一个独立资产，依次执行，失败后停止。':(studio?'使用网页订阅积分，后台自动生成、下载并保存到当前资产。':`直接调用 ${esc(providerMeta(providerId).name)} API，完成后保存模型和新版本。`)}${version?'重新生成会保留现有版本。':''}</p>` +
+      '<button id="add-ai-account" class="full">＋ 添加 AI 账号（订阅 / API Key / 自定义）</button>' +
+      `<a class="help-line" href="/settings.html">模型配置 · 地址与 Key</a><p class="help-line">${form.mode==='batch'?'每张图片生成一个独立资产，依次执行，失败后停止。':(studio?'当前 Tripo 账号为订阅，消耗订阅积分生成并保存到当前资产。':`直接调用 ${esc(providerMeta(providerId).name)} API，完成后保存模型和新版本。`)}${version?'重新生成会保留现有版本。':''}</p>` +
       (version ? '<button id="review-model">查看模型四视图</button>' : '');
     action = version ? '重新生成模型' : '生成模型';
-    context = studio ? `Studio 后台生成 · ${form.geometryQuality==='detailed'?'高精度':'标准几何'} · ${form.tripoTexture?(form.textureQuality==='extreme'?'极高贴图':'标准贴图')+' · '+(Number(form.textureSize)/1024)+'K 导出':'白模'}` : `${providerMeta(providerId).name} API · 生成完成后可预览与下载`;
+    context = studio ? `Tripo 订阅 · ${form.geometryQuality==='detailed'?'高精度':'标准几何'} · ${form.tripoTexture?(form.textureQuality==='extreme'?'极高贴图':'标准贴图')+' · '+(Number(form.textureSize)/1024)+'K 导出':'白模'}` : `${providerMeta(providerId).name} API · 生成完成后可预览与下载`;
     renderServiceStatus();
 
 
@@ -890,7 +884,6 @@ function renderParameters() {
   }));
   $('open-rig-agent')?.addEventListener('click',safe(showRigAgent));
   $('studio-human-rig')?.addEventListener('click',safe(()=>exclusive(()=>studioProcess('rig'))));
-  $('connect-session')?.addEventListener('click',safe(()=>openConnectDialog()));
   mountCreationSettings();  // 图片面板的「创作设置」按钮（每次重渲染后重挂）
   $('add-ai-account')?.addEventListener('click',safe(()=>openAddAccount({ onSaved: async (r) => {
     // 保存 Key / 连上订阅后：重拉目录（key_configured 会变）并重渲染面板
@@ -1244,12 +1237,14 @@ async function runTool() {
       return;
     }
     if (tool === "model") {
-      const studio=form.modelSource==='studio';
-      if(!studio) modelCatalog = await api('/api/settings/catalog');
+      modelCatalog = await api('/api/settings/catalog').catch(()=>({models:[],providers:[],accounts:[]}));
+      // 路由同面板一致：Tripo 且当前账号是订阅 → 订阅；否则 API
+      const tripSubscription=(modelCatalog.accounts||[]).find(a=>a.provider==='tripo' && a.kind==='subscription' && a.active && a.enabled);
+      const studio=form.modelProvider==='tripo' && !!tripSubscription;
       const model = studio ? {id:form.studioModel} : modelCatalog.models.find(m=>m.id===form.tripoModel && m.enabled && m.service==='model3d');
       if (!studio && !model) throw new Error('所选模型不可用，请重新选择供应商与模型');
       if (!studio && !modelCatalog.providers.find(p=>p.id===model.provider)?.key_configured)
-        throw new Error(`请先在模型配置中填写 ${providerMeta(model.provider).name} 的 API Key`);
+        throw new Error(`请先在 AI 账号中为 ${providerMeta(model.provider).name} 添加账号`);
       const promptLimit=studio?1000:1024;
       if (form.mode==='text' && (!form.prompt.trim() || [...form.prompt].length>promptLimit)) throw new Error(`填写 1–${promptLimit} 字的模型描述`);
       if (form.mode==='multi' && !['front','side','back','right'].every(v=>uploads[v])) throw new Error('请先补齐正面、背面、左侧和右侧四张参考图');
