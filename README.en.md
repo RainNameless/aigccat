@@ -16,6 +16,30 @@ It is not a "look, it makes a model" demo. It exists to solve the unglamorous pr
 
 ## Screenshots
 
+### v0.4: Multi-account pool · Custom model services · Model assignment
+
+**One page manages every model credential** — a sub2api-style account pool: each
+provider can hold multiple accounts (subscription / API key / custom model service),
+with live status dots, one-click "current" switching, enable/disable and delete.
+
+![AI accounts](docs/screenshots/accounts-page.png)
+
+**Custom model services**: any OpenAI-compatible endpoint plugs in — enter the base
+URL and key, and the upstream model list is imported automatically on save. Text and
+image models can live in the same account; image models appear in Image Studio directly.
+
+![Add account](docs/screenshots/add-account.png)
+
+![Custom model service](docs/screenshots/custom-model.png)
+
+**Model assignment**: pick one model per purpose — image (four-views), text LLM
+(AI rigging), vision (multimodal), 3D — across providers, effective immediately.
+
+**Chat test**: pick any model at the bottom of the accounts page and fire a quick
+text/image request to prove the account works.
+
+![Chat test](docs/screenshots/chat-test.png)
+
 ### Workbench
 
 11 tools, a 3D viewport with orientation controls, and an asset panel on the right; the six-step workflow indicator sits on top.
@@ -25,6 +49,24 @@ It is not a "look, it makes a model" demo. It exists to solve the unglamorous pr
 A first run starts from a single sentence — or upload reference images directly:
 
 ![New draft](docs/screenshots/workbench-new.png)
+
+### Model building: five providers + parameter help
+
+No more separate "web subscription / API" UIs — pick a provider and go; whether Tripo
+uses your subscription or an API key is decided by the current account, right on the card.
+Every generation parameter has a ? help button (faces / geometry / quads / texture / PBR /
+texture quality / export size), plus a beginner guide for newcomers.
+
+![Provider picker](docs/screenshots/provider-picker.png)
+
+![Parameter help](docs/screenshots/parameter-help.png)
+
+### Recycle bin: permanent delete
+
+Besides restore, the recycle bin can now **permanently delete assets — MinIO data
+included** (double confirmation, irreversible).
+
+![Permanent delete](docs/screenshots/trash-purge.png)
 
 ### Tools
 
@@ -81,8 +123,12 @@ Image inventory: each asset's four views kept as a separate group, originals dow
 **Interface**
 
 - Workbench with 11 tools; infinite-canvas asset graph (5 node levels, 4 layouts)
-- Asset library, image inventory, project archiving and a recycle bin
-- Unified login for local / LAN / public access; admin console with accounts, security, model & creation settings, theme and audit log
+- Multi-account pool: subscription / API key / custom model services in one place —
+  switch current, enable/disable, fetch the upstream model list
+- Model assignment: assign one model per purpose (image / text LLM / vision / 3D) across providers
+- Parameter help: hover tooltips for 7 generation parameters + a beginner guide
+- Asset library, image inventory, project archiving and a recycle bin (with permanent delete, MinIO data included)
+- Unified login for local / LAN / public access; admin console with overview, accounts, AI accounts, security, theme and audit log
 
 **Delivery**
 
@@ -105,14 +151,15 @@ browser ──► gateway :8080   (the only exposed port; unified auth)
 ```
 **All of the above live in a single container** — one `docker run`, no Blender install needed.
 
-The only piece still on the host is the **Studio web-subscription runner (:8790)** — it has to open a
-real browser window a human operates, which cannot live inside a container
-(see [Studio session setup](docs/STUDIO-SESSION.md)). Skipping it only affects that one path.
+**The subscription-login browser lives in the container too**: it spins up a virtual
+display + Chromium + VNC inside, embedded right in the web UI — the host needs no
+browser installed at all.
 
 - **Backend**: Rust + axum. All routes are registered in `web/src/main.rs`; modules only provide handlers
 - **Frontend**: framework-free, build-free vanilla HTML/JS/CSS with a locally vendored Three.js
 - **Storage**: MinIO (S3-compatible). Object keys are path-shaped and map 1:1 onto a local filesystem
-- **Workers**: Blender-related capabilities run on the host; containers only orchestrate
+- **Workers**: the amd64 image ships Blender 5.2 built in (arm64 falls back to a host
+  install); the login Chromium and the AI-rigging OpenCode also run inside the container
 
 ## First, our situation: we're looking for sponsors
 
