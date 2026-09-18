@@ -70,9 +70,18 @@ docker logs aigccat-dev-verify 2>&1 | grep -i "密码\|password" | head -3
       生图模型出现在「图片创作」的图像模型下拉里
 - [ ] 「模型分配」四条用途可指定模型；「AI 对话测试」能选模型发消息
 - [ ] 工作台 → 模型构建：五家供应商卡片一致；无「网页订阅/API」开关
+- [ ] 模型构建：每个参数旁有 ? 帮助按钮，点击弹说明；右下角有「新手向导」小猫入口
 - [ ] 资产库 → 回收站：有红色「永久删除所选」按钮；删除后资产从 MinIO 消失
 - [ ] `docker exec aigccat-dev-verify ls /srv/static | head`：静态文件正常
 - [ ] 验证完清理：`docker rm -f aigccat-dev-verify && docker volume rm aigccat-dev-verify-data`
+
+## 已合并 main
+
+main 分支的 4 个新提交（模型参数帮助 / 新手向导 / 图标提示，d18855e）已合入 dev：
+冲突解决原则 = 保留 dev 的统一面板结构（供应商卡片、无订阅/API 双轨），
+把 main 的 7 个参数帮助按钮（面数/几何/四边面/纹理/PBR/贴图质量/导出尺寸）
+注入到对应字段；新手向导（右下角小猫）与 tooltip 正常工作。
+合并后冒烟测试通过；静态资源版本推进到 20260919-merge-1。
 
 ## 合并规则
 
