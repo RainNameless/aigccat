@@ -303,6 +303,72 @@ small,
   font-weight: normal;
   margin-top: 4px;
 }
+.parameter-heading, .parameter-toggle-row { display: flex; align-items: center; gap: 5px; }
+.parameter-heading { margin: 17px 0 8px; }
+.parameter-heading .field { margin: 0; }
+.parameter-toggle-row .toggle { flex: 1; min-width: 0; }
+button.parameter-help-button {
+  flex: none; width: 22px; height: 22px; min-height: 22px; padding: 0;
+  border: 1px solid var(--border); border-radius: 50%;
+  color: var(--muted); font-size: 11px; line-height: 1;
+}
+button.parameter-help-button:hover, button.parameter-help-button:focus-visible {
+  color: var(--accent); border-color: var(--accent); background: var(--surface);
+}
+.parameter-tooltip {
+  position: fixed; z-index: 1100; width: min(310px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px); overflow: auto; padding: 15px 17px;
+  color: var(--text); background: var(--panel); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 8px 30px #0003; line-height: 1.65;
+  pointer-events: auto; overflow-wrap: anywhere;
+}
+.parameter-tooltip p { margin: 8px 0; }
+.parameter-tooltip small { display: block; color: var(--muted); font-size: 11px; }
+.beginner-guide { position: fixed; right: 22px; bottom: 18px; z-index: 1000; }
+.beginner-guide[hidden], .guide-panel[hidden], .parameter-tooltip[hidden] { display: none; }
+.guide-launcher {
+  display: flex; margin-left: auto; padding: 5px 12px 5px 5px; gap: 7px;
+  border-radius: 28px; border: 1px solid var(--border); background: var(--panel);
+  box-shadow: 0 3px 18px #0002; font-size: 12px;
+}
+.guide-launcher svg { width: 44px; height: 44px; overflow: visible; }
+.cat-body { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+.cat-ear { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+.cat-face { fill: none; stroke: var(--text); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.cat-cheek { fill: var(--accent); opacity: .3; }
+.guide-launcher:hover svg { transform: rotate(-6deg); }
+.guide-panel {
+  display: flex; flex-direction: column; width: min(370px, calc(100vw - 28px));
+  max-height: min(660px, calc(100dvh - 105px)); margin-bottom: 12px;
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  border-radius: 18px; box-shadow: 0 12px 45px #0003; overflow: hidden;
+}
+.guide-panel header { display: flex; justify-content: space-between; align-items: center; padding: 16px 16px 10px; flex: none; }
+.guide-panel header strong { font-size: 14px; }
+.guide-panel header small { display: block; color: var(--muted); margin-top: 4px; }
+.guide-close { font-size: 22px; }
+.guide-topics { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 16px 12px; flex: none; border-bottom: 1px solid var(--border); }
+.guide-topics button { min-height: 26px; padding: 3px 8px; font-size: 11px; border: 1px solid var(--border); border-radius: 14px; }
+.guide-content { overflow-y: auto; overscroll-behavior: contain; padding: 16px; line-height: 1.8; }
+.guide-content h3 { font-size: 17px; line-height: 1.5; margin: 0 0 10px; }
+.guide-content p { margin: 0 0 12px; }
+.guide-comparison { display: grid; gap: 8px; margin: 14px 0; }
+.guide-comparison section { padding: 12px; background: var(--surface); border-radius: 10px; }
+.guide-comparison h4 { margin: 0 0 5px; font-size: 12px; }
+.guide-comparison p { margin: 0; color: var(--muted); }
+.guide-tip strong { display: block; color: var(--accent); margin-bottom: 4px; }
+.guide-note { color: var(--muted); font-size: 11px; }
+.guide-panel footer { padding: 9px 16px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); flex: none; }
+.guide-glossary { display: grid; grid-template-columns: 75px 1fr; gap: 7px; margin: 14px 0; }
+.guide-glossary dt { font-weight: 600; }
+.guide-glossary dd { margin: 0; color: var(--muted); }
+.guide-mesh { display: flex; justify-content: center; gap: 38px; padding: 10px; text-align: center; color: var(--muted); }
+.guide-mesh span { display: block; width: 81px; height: 61px; margin-bottom: 7px; border-right: 1px solid var(--accent); border-bottom: 1px solid var(--accent); }
+.quad-grid, .triangle-grid { background: linear-gradient(var(--accent) 1px, transparent 1px), linear-gradient(90deg, var(--accent) 1px, transparent 1px); background-size: 20px 20px; }
+.guide-mesh .triangle-grid { background-image: linear-gradient(45deg, transparent 47%, var(--accent) 49%, var(--accent) 51%, transparent 53%), linear-gradient(var(--accent) 1px, transparent 1px), linear-gradient(90deg, var(--accent) 1px, transparent 1px); }
+.guide-sword { display: flex; align-items: center; gap: 7px; font-size: 11px; padding: 10px; background: var(--surface); border-radius: 8px; }
+.guide-sword b { color: var(--accent); }
+@media (max-width: 600px) { .beginner-guide { right: 14px; bottom: 14px; } }
 .full {
   width: 100%;
 }

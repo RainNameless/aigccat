@@ -55,6 +55,22 @@
 
 **前置条件校验**：`split/remesh/uv/texture/paint/upscale/pbr/rig/animation` 需要「已有资产 + 有模型版本」，不满足时渲染 `.tool-requirement` 引导横幅并禁用运行按钮。
 
+### 模型构建参数说明
+
+参数标题或开关旁的 `?` 不额外占行。鼠标悬停或键盘聚焦显示浮层；点击（含触屏）可固定，再次点击、Escape、点击外部或滚动参数栏关闭。帮助操作不修改参数或提交生成请求。
+
+模型构建页右下角提供可开启的猫咪新手向导，使用具体例子、开关／档位对比和网格示意图解释术语。默认关闭，开启状态保存在本机；开启后可选择话题，也可随参数问号切换内容。话题跟随当前可用参数。猫咪是轻量 SVG 占位形象，不是 Live2D 模型。
+
+覆盖目标面数、几何精度、四边面拓扑、生成纹理、PBR、贴图质量与导出尺寸，分别说明含义、用途和限制。四边面请求不保证 GLB 保留四边面，导出尺寸也不等于生成细节质量。
+
+此阶段不提供报价：网页订阅积分与 API 额度分别标注「当前配置费用待确认」。准确计费与估算联动由后续迭代实现。
+
+文案依据（核对日期：2026-09-17）：
+
+- [Tripo v3.1 官方说明](https://developers.tripo3d.ai/en/models/v3-1) 与 [生成接口文档](https://platform.tripo3d.ai/docs/generation)：面数、几何、纹理与拓扑参数的一般语义。Studio 档位不套用 API 枚举或价格。
+- [glTF 2.0 网格规范](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#meshes) 与 [材质规范](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials)：网格原语及 metallic-roughness 材质。
+- 当前接入范围和参数传递以 `web/src/tripo.rs`、`scripts/studio-runner/client.cjs` 和 `scripts/studio-runner/export-generated.cjs` 为准；`texture_size` 用于后续导出。界面隐藏某项表示当前工作台未提供，不代表上游服务没有该能力。
+
 ## 5. 顶部流程指示
 
 `FLOW_STEPS` 定义 **6 步**：参考 → 建模 → 整理 → 贴图 → 绑骨 → 动作。
