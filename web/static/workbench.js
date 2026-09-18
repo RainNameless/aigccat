@@ -177,23 +177,25 @@ function renderServiceStatus(){
   const el=$('service-status');if(!el)return;
   // 当前账号名：订阅 → 当前订阅账号；API → 当前供应商的当前 Key 账号
   let accountName='';
-  if(studio){const a=currentAccountsOf('tripo','subscription').find(x=>x.active);accountName=a?` · ${a.name}`:'';}
-  else{const pid=form.modelProvider||'tripo';const a=currentAccountsOf(pid,'apikey').find(x=>x.active);accountName=a?` · ${a.name}`:'';}
-  // 快速切换：订阅账号下拉（多于一条才有意义；一条也放，保持一致）
+  if(studio){const a=currentAccountsOf('tripo','subscription').find(x=>x.active);accountName=a?a.name:'';}
+  else{const pid=form.modelProvider||'tripo';const a=currentAccountsOf(pid,'apikey').find(x=>x.active);accountName=a?a.name:'';}
+  // 快速切换：订阅账号下拉（多条账号时用它换账号，选中的名字就是当前账号，
+  // 所以上面那段文字里不再重复名字，只在没有下拉时补一句）
   const subs=currentAccountsOf('tripo','subscription');
-  const switcher=subs.length
+  const switcher=subs.length>1
     ? `<select id="studio-account-switch" onclick="event.stopPropagation()" title="切换订阅账号" style="margin-left:6px;font-size:11px;background:transparent;color:inherit;border:1px solid var(--border);border-radius:4px;padding:1px 2px">${subs.map(s=>`<option value="${esc(s.id)}" ${s.active?'selected':''}>${esc(s.name)}</option>`).join('')}</select>`
-    : '';
-  const blenderDot=blenderHealth?.reachable
-    ? `<span class="status-dot" title="Blender ${esc(blenderHealth.version||'')} · 容器内可用" style="background:var(--green)"></span>`
-    : '';
+    : (subs.length===1?`<span style="margin-left:6px;opacity:.75">${esc(subs[0].name)}</span>`:'');
+  const blenderDot='';
+  const tail=studio
+    ? (ready?'' : '<span style="margin-left:6px;opacity:.8">· 点此登录</span>')
+    : (accountName?`<span style="margin-left:6px;opacity:.75">${esc(accountName)}</span>`:'');
   el.innerHTML=
     (studio
-      ? `<span class="status-dot" style="background:${ready?'var(--green)':'var(--red,#ef4444)'}"></span>网页订阅 · ${ready?'已连接':studioHealth?'未连接':'检查连接…'}${esc(accountName)}`
-      : `<span class="status-dot" style="background:${modelCatalog.providers?.find(p=>p.id===(form.modelProvider||'tripo'))?.key_configured?'var(--green)':'var(--red,#ef4444)'}"></span>${esc(providerMeta(form.modelProvider||'tripo').name)} API${esc(accountName)}`)
-    + switcher
+      ? `<span class="status-dot" style="background:${ready?'var(--green)':'var(--red,#ef4444)'}"></span>网页订阅 · ${ready?'已连接':studioHealth?'未连接':'检查连接…'}`
+      : `<span class="status-dot" style="background:${modelCatalog.providers?.find(p=>p.id===(form.modelProvider||'tripo'))?.key_configured?'var(--green)':'var(--red,#ef4444)'}"></span>${esc(providerMeta(form.modelProvider||'tripo').name)} API`)
+    + switcher + tail
     + (blenderHealth===null?'':`<span title="${blenderHealth.reachable?`Blender ${blenderHealth.version||''} 已连接`:'Blender 未连接'}" style="margin-left:8px;font-size:11px;color:${blenderHealth.reachable?'var(--green)':'var(--muted)'}">⬡ Blender</span>`);
-  el.title=studio?(ready?'后台执行器可用；历史失败请在任务记录查看':studioHealth?.error||'正在检查当前连接'):'';
+  el.title=studio?(ready?`后台执行器可用；当前账号：${accountName||'—'}`:studioHealth?.error||'点这里打开登录窗口'):(accountName?`当前账号：${accountName}`:'');
   $('studio-account-switch')?.addEventListener('change',safe(async e=>{
     try{
       await api('/api/settings/accounts/'+encodeURIComponent(e.target.value),'PATCH',{active:true});
@@ -627,7 +629,7 @@ function renderParameters() {
     const modelSection = field('生成供应商',providerPicker(modelCatalog,providerId)) +
       (studio
         ? field('Tripo 订阅模型',select('studioModel',models.map(m=>[m.id,esc(m.model)]))) +
-          `<p class="help-line">当前 Tripo 账号是<strong>订阅</strong>（消耗订阅积分）；要改用 API Key，到「AI 账号」里把当前账号切换过去。</p>`
+          `<p class="help-line">当前 Tripo 账号是<strong>订阅</strong>（消耗订阅积分）；要改用 API Key，到「AI 账号」里把当前账号切换过去。${studioHealth&&!studioHealth.ready?'<br><strong>订阅当前未连接</strong> —— 先到「AI 账号」里点 Tripo 订阅账号登录一次再生成。':''}</p>`
         : providerModels.length
           ? field('模型',choices('tripoModel',providerModels.map(m=>[m.id,esc(m.model.startsWith('P1')?'P1 · 低多边形':m.model)])))
           : '<p class="help-line">该供应商暂无启用的模型，请到 AI 账号里添加账号。</p>');

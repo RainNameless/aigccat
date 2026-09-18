@@ -60,7 +60,7 @@ async function render(reset=true){const turn=++serial;if(reset)message('');conte
    <div class="table-scroll"><table class="admin-table"><thead><tr><th>账号</th><th>平台</th><th>类型</th><th>状态</th><th>操作</th></tr></thead><tbody id="account-rows">${rows||'<tr><td colspan="5" class="admin-empty">还没有账号，点右上角添加</td></tr>'}</tbody></table></div>
    <div class="admin-toolbar" style="margin-top:22px"><h2>模型分配</h2><span style="font-size:12px;color:var(--muted)">每个用途指定一条模型，可跨多家挑；像模型构建一样随时改</span></div>
    <div class="table-scroll"><table class="admin-table"><thead><tr><th>用途</th><th colspan="2">指定模型</th><th colspan="2">当前</th></tr></thead><tbody id="assign-rows">
-     ${assignRow('image','四视图生成 / 图片创作')}${assignRow('text','绑骨与 LLM 调用')}${assignRow('vision','识图 · 多模态')}${assignRow('model3d','3D 建模')}
+     ${assignRow('image','四视图生成 / 图片创作')}${assignRow('text','绑骨与 LLM 调用')}${assignRow('vision','多模态图片理解')}${assignRow('model3d','3D 建模')}
    </tbody></table></div>`;
   $('#add-account').onclick=()=>window.AigccatAccounts?.openAddAccount({onSaved:()=>{message('已保存');render(false);}});
   $('#account-rows').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const tr=b.closest('tr');const id=tr.dataset.id;

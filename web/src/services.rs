@@ -302,11 +302,13 @@ impl Catalog {
         let next_id = |accounts: &[Account]| format!("acct-{}", now.max(1) * 1000 + accounts.len() as u64 + 1);
         // 任何已配过 Key 的接入（内置供应商与自定义接入）都补一条「默认账号」——
         // 老配置里的 Key 无缝变成账号池里的第一条，账号页一开始就有东西可管。
+        // 名字用接入名（「Sub2API · 文本」这类），多条账号并排时才分得清谁是谁。
         for p in self.providers.clone() {
             let has_key_account = self.accounts.iter().any(|a| a.provider == p.id && a.kind == "apikey");
             if !p.api_key.trim().is_empty() && !has_key_account {
+                let label = if p.name.trim().is_empty() { "默认账号".to_string() } else { p.name.trim().to_string() };
                 self.accounts.push(Account {
-                    id: next_id(&self.accounts), name: "默认账号".into(), provider: p.id.clone(),
+                    id: next_id(&self.accounts), name: label, provider: p.id.clone(),
                     kind: "apikey".into(), api_key: p.api_key.clone(), base_url: p.base_url.clone(),
                     enabled: true, active: true, created_at: now,
                 });
