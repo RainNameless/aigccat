@@ -14,6 +14,7 @@ import { viewerTools } from "./viewer.js?v=opened-cache-19";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { starterPresets, loadPresets, savePresets } from './creative-presets.js?v=1';
+import { PROVIDERS, openAddAccount, openSubscription } from './accounts.js?v=1';
 
 const $ = (id) => document.getElementById(id);
 const esc = (value) =>
@@ -26,30 +27,7 @@ const esc = (value) =>
   );
 const icon = (name) => `<i data-lucide="${name}"></i>`;
 
-/* 五家内置 3D 供应商的展示信息（与后端 providers.rs 注册表对应）。
-   图标是自绘的简笔 SVG（描边风格与 lucide 一致），不外链任何远程资源。 */
-const PROVIDERS = {
-  tripo: {
-    name: "Tripo", color: "#7C5CFF",
-    svg: '<path d="M12 3 3 20h18Z"/><path d="M12 3v17"/><path d="M3 20 12 12l9 8"/>',
-  },
-  meshy: {
-    name: "Meshy", color: "#22C55E",
-    svg: '<path d="M4 4h16v16H4Z"/><path d="M4 12h16M12 4v16"/>',
-  },
-  rodin: {
-    name: "Rodin", color: "#F59E0B",
-    svg: '<circle cx="12" cy="12" r="8"/><path d="M4 12h16"/><path d="M12 4c3.2 2.6 3.2 13.4 0 16"/><path d="M12 4c-3.2 2.6-3.2 13.4 0 16"/>',
-  },
-  hunyuan3d: {
-    name: "Hunyuan3D", color: "#0052D9",
-    svg: '<path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7a5 5 0 1 0 5 5"/><circle cx="12" cy="12" r="1.4"/>',
-  },
-  hi3d: {
-    name: "Hi3D", color: "#EC4899",
-    svg: '<path d="M6 5v14"/><path d="M6 12h7"/><path d="M13 5v14"/><path d="M19 10v6"/>',
-  },
-};
+/* 五家内置 3D 供应商的展示信息已移至共享模块 accounts.js（统一的「添加 AI 账号」弹窗也用它）。 */
 function providerMeta(pid, fallbackName) {
   return PROVIDERS[pid] || { name: fallbackName || pid, color: "#888888", svg: '<circle cx="12" cy="12" r="8"/>' };
 }
@@ -213,89 +191,14 @@ function syncConnectEntry(){
   }else if(!need&&existing){existing.remove();}
 }
 setInterval(refreshStudioHealth,30000);
-/* ---------- 连接网页订阅会话（界面方式，等价于 scripts/studio-runner/connect-session.cjs）----------
-   执行器负责开浏览器、抓 cookie、落盘；这里只做状态展示与触发。 */
-const connectFlow = { timer: null, state: null };
-function connectNotice() {
-  const s = connectFlow.state;
-  if (!s) return "正在读取状态…";
-  if (s.state === "unavailable") return `执行器不可达 · ${s.error || "未知原因"}`;
-  if (s.state === "waiting") return "登录窗口已打开，等你在那边操作";
-  return studioHealth?.ready ? "已连接" : "未连接";
+/* ---------- 连接网页订阅会话：整个弹窗（含 VNC 登录画面）已移到共享模块 accounts.js，
+   与「添加 AI 账号」统一入口共用；这里只保留回调：连上后刷新积分状态。 ---------- */
+function openConnectDialog() {
+  openSubscription({ onConnected: async (result) => {
+    await refreshStudioHealth();
+    toast(`已连接网页订阅 · 剩余积分 ${result.credits ?? "未知"}`);
+  }});
 }
-function dialogConnect() {
-  const s = connectFlow.state || {};
-  const waiting = s.state === "waiting";
-  const credits = studioHealth?.credits != null ? ` · 剩余积分 ${studioHealth.credits}` : "";
-  // 登录画面由容器内的 noVNC 提供，经 gateway 转发到同一个端口上，
-  // 所以这里直接内嵌就行 —— 不用切窗口，也不依赖任何宿主机进程。
-  const VNC_URL = "/studio/vnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&path=studio/vnc/websocket";
-  let body =
-    '<p class="help-line">这条链路用的是<strong>你自己账号</strong>的网页订阅积分，不是开发者 API 额度。凭据只写进<strong>服务容器的数据卷</strong>（<code>/data/studio/</code>），不上传、不入库。</p>' +
-    `<p class="help-line">当前状态：<strong>${connectNotice()}</strong>${credits}${s.notice ? ` · ${esc(s.notice)}` : ""}</p>` +
-    (s.configured_proxy
-      ? `<p class="help-line">登录窗口经代理 <code>${esc(s.configured_proxy)}</code> 访问上游。</p>`
-      : '<p class="help-line">登录窗口<strong>直连，不走代理</strong>。若这台机器的网络需要代理才能访问上游，画面里会一直加载不出来 —— 在 <code>.env</code> 里设 <code>STUDIO_PROXY=http://host.docker.internal:7897</code> 后重启容器即可。</p>');
-  if (waiting) {
-    body +=
-      '<p class="help-line">登录窗口就是<strong>下面这个画面</strong>，直接在里头操作（含邮箱验证码等步骤）。' +
-      "这边不会替你去试，也不会去刷上游；你登好了再点下面的按钮，我们才去取凭据。" +
-      `${s.timeout_seconds ? `窗口最多开 ${Math.round(s.timeout_seconds / 60)} 分钟，之后自动关闭。` : ""}</p>` +
-      `<div class="vnc-frame"><iframe src="${VNC_URL}" title="登录窗口"></iframe></div>` +
-      '<button id="connect-finish" class="full">我已登录，取走凭据</button>' +
-      '<button id="connect-cancel" class="full">取消并关闭窗口</button>';
-  } else {
-    if (!studioHealth?.ready) {
-      body +=
-        '<ol class="help-line" style="padding-left:18px;margin:6px 0">' +
-        "<li>点下面的按钮，登录画面会<strong>直接出现在这个对话框里</strong>（不用切窗口，也不用去别的机器）。</li>" +
-        "<li>在里面登录你自己的订阅账号（含邮箱验证码等步骤）。</li>" +
-        "<li>登录完点「我已登录」，我们就取走这次登录的凭据。</li></ol>";
-    }
-    body += `<button id="connect-start" class="full">${studioHealth?.ready ? "重新连接（换账号或会话过期时用）" : "打开登录窗口"}</button>`;
-  }
-  modal("连接网页订阅", body);
-  $("connect-start")?.addEventListener("click", safe(() => connectAction("start")));
-  $("connect-finish")?.addEventListener("click", safe(() => connectAction("finish")));
-  $("connect-cancel")?.addEventListener("click", safe(() => connectAction("cancel")));
-}
-// 状态签名：只在这些字段变化时才重绘对话框（不然每 2 秒一次 DOM 重建会让它看起来在闪）
-function connectSignature(s) {
-  return s ? [s.state, s.session, s.notice || "", s.error || ""].join("|") : "";
-}
-async function pollConnect(force) {
-  const before = connectSignature(connectFlow.state);
-  try { connectFlow.state = await api("/api/studio/session"); }
-  catch (e) { connectFlow.state = { state: "unavailable", error: String(e.message || e).slice(0, 200) }; }
-  if (force || connectSignature(connectFlow.state) !== before) dialogConnect();
-}
-async function openConnectDialog() {
-  connectFlow.state = null;
-  modal("连接网页订阅", '<p class="help-line">正在读取状态…</p>');
-  await pollConnect(true);
-  if (!connectFlow.timer) connectFlow.timer = setInterval(() => pollConnect(false).catch(() => {}), 3000);
-}
-async function connectAction(action) {
-  const buttons = ["connect-start", "connect-finish", "connect-cancel"].map(id => $(id)).filter(Boolean);
-  buttons.forEach(b => (b.disabled = true));
-  try {
-    const result = await api("/api/studio/session", { method: "POST", body: JSON.stringify({ action }) });
-    if (action === "finish") {
-      await refreshStudioHealth();
-      toast(`已连接网页订阅 · 剩余积分 ${result.credits ?? "未知"}`);
-      $("dialog").close();
-      return;
-    }
-    connectFlow.state = result;
-    dialogConnect();
-  } catch (e) {
-    toast(String(e.message || e).slice(0, 160));
-    buttons.forEach(b => (b.disabled = false));
-  }
-}
-$("dialog").addEventListener("close", () => {
-  if (connectFlow.timer) { clearInterval(connectFlow.timer); connectFlow.timer = null; }
-});
 let versionLabels = {};
 let creationState = null,
   assetMedia = [],
@@ -705,6 +608,7 @@ function renderParameters() {
       (studio ? (form.studioModel==='v3.1-20260211'?field('几何精度',select('geometryQuality',[['','标准'],['detailed','高精度 · 更多细节']])):'') + toggle('modelQuad','四边面拓扑') : '') +
       toggle('tripoTexture','生成纹理') + (form.tripoTexture ? toggle('tripoPbr','PBR 材质') + (studio ? field('贴图质量',select('textureQuality',[['standard','标准'],['extreme','极高 · 细节优先']])) + field('导出贴图尺寸',choices('textureSize',[['2048','2K'],['4096','4K'],['8192','8K']])) + '<p class="help-line">尺寸为导出目标；实际细节取决于生成结果。高精度与高质量贴图会增加积分和等待时间。</p>' : '') : '') +
       (studio && studioHealth && !studioHealth.ready ? '<button id="connect-session" class="full">连接网页订阅 · 点击登录</button>' : '') +
+      '<button id="add-ai-account" class="full">＋ 添加 AI 账号（订阅 / API Key）</button>' +
       `<a class="help-line" href="/settings.html">${studio?"模型设置":"模型配置 · 地址与 Key"}</a><p class="help-line">${form.mode==='batch'?'每张图片生成一个独立资产，依次执行，失败后停止。':(studio?'使用网页订阅积分，后台自动生成、下载并保存到当前资产。':`直接调用 ${esc(providerMeta(providerId).name)} API，完成后保存模型和新版本。`)}${version?'重新生成会保留现有版本。':''}</p>` +
       (version ? '<button id="review-model">查看模型四视图</button>' : '');
     action = version ? '重新生成模型' : '生成模型';
@@ -946,6 +850,11 @@ function renderParameters() {
   $('open-rig-agent')?.addEventListener('click',safe(showRigAgent));
   $('studio-human-rig')?.addEventListener('click',safe(()=>exclusive(()=>studioProcess('rig'))));
   $('connect-session')?.addEventListener('click',safe(()=>openConnectDialog()));
+  $('add-ai-account')?.addEventListener('click',safe(()=>openAddAccount({ onSaved: async (r) => {
+    // 保存 Key / 连上订阅后：重拉目录（key_configured 会变）并重渲染面板
+    if (r.type === 'apikey') { modelCatalog = await api('/api/settings/catalog').catch(()=>({models:[],providers:[]})); renderParameters(); toast('Key 已保存'); }
+    else if (r.type === 'subscription') { toast('订阅账号已连接'); }
+  }})));
   $('service-status')?.addEventListener('click',safe(()=>openConnectDialog()));
   $('prepare-multiview')?.addEventListener('click',()=>{if(!uploads.input&&uploads.front)uploads.input={...uploads.front};selectTool('image');});
   $('load-multiview')?.addEventListener('click',safe(()=>chooseReferenceGroup()));
