@@ -25,6 +25,55 @@ const esc = (value) =>
       ],
   );
 const icon = (name) => `<i data-lucide="${name}"></i>`;
+
+/* 五家内置 3D 供应商的展示信息（与后端 providers.rs 注册表对应）。
+   图标是自绘的简笔 SVG（描边风格与 lucide 一致），不外链任何远程资源。 */
+const PROVIDERS = {
+  tripo: {
+    name: "Tripo", color: "#7C5CFF",
+    svg: '<path d="M12 3 3 20h18Z"/><path d="M12 3v17"/><path d="M3 20 12 12l9 8"/>',
+  },
+  meshy: {
+    name: "Meshy", color: "#22C55E",
+    svg: '<path d="M4 4h16v16H4Z"/><path d="M4 12h16M12 4v16"/>',
+  },
+  rodin: {
+    name: "Rodin", color: "#F59E0B",
+    svg: '<circle cx="12" cy="12" r="8"/><path d="M4 12h16"/><path d="M12 4c3.2 2.6 3.2 13.4 0 16"/><path d="M12 4c-3.2 2.6-3.2 13.4 0 16"/>',
+  },
+  hunyuan3d: {
+    name: "Hunyuan3D", color: "#0052D9",
+    svg: '<path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7a5 5 0 1 0 5 5"/><circle cx="12" cy="12" r="1.4"/>',
+  },
+  hi3d: {
+    name: "Hi3D", color: "#EC4899",
+    svg: '<path d="M6 5v14"/><path d="M6 12h7"/><path d="M13 5v14"/><path d="M19 10v6"/>',
+  },
+};
+function providerMeta(pid, fallbackName) {
+  return PROVIDERS[pid] || { name: fallbackName || pid, color: "#888888", svg: '<circle cx="12" cy="12" r="8"/>' };
+}
+/* 供应商选择：分段式图标按钮（参考 sub2api 添加账号时的平台选择控件）。
+   未配置 Key 的供应商会标出来但仍可选 —— 方便先选再看提示，而不是直接消失。 */
+function providerPicker(catalog, activeProvider) {
+  const models = catalog.models.filter((m) => m.enabled && m.service === "model3d");
+  const used = [...new Set(models.map((m) => m.provider))];
+  const buttons = used
+    .map((pid) => {
+      const p = catalog.providers.find((x) => x.id === pid);
+      const meta = providerMeta(pid, p?.name);
+      const active = String(activeProvider) === String(pid);
+      const configured = !!p?.key_configured;
+      return `<button type="button" title="${esc(meta.name)}${configured ? "" : " · 未配置 Key，生成前需在模型配置里填写"}" data-choice="modelProvider" data-value="${esc(pid)}" class="${active ? "active" : ""}" ${configured ? "" : 'data-unconfigured="1"'} style="--provider-color:${meta.color}" aria-pressed="${active}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${meta.svg}</svg><span>${esc(meta.name)}</span>${configured ? "" : "<em>未配置</em>"}</button>`;
+    })
+    .join("");
+  return `<div class="provider-picker" role="group" aria-label="生成供应商">${buttons}</div>`;
+}
+/* 某供应商下要展示的模型条目（保序：默认在前，其余按目录顺序） */
+function providerModelsOf(catalog, pid) {
+  const list = catalog.models.filter((m) => m.enabled && m.service === "model3d" && m.provider === pid);
+  return [...list].sort((a, b) => Number(b.default) - Number(a.default));
+}
 const icons = () => window.lucide?.createIcons();
 const TOOLS = [
   ["image", "图片创作", "创作图片", "panels-top-left"],
@@ -628,25 +677,38 @@ function renderParameters() {
     if (!studio && !models.some(m=>m.id===form.tripoModel)) form.tripoModel=(models.find(m=>m.default)||models[0])?.id||'';
     form.mode='multi';
     const selectedModel=studio?form.studioModel:models.find(m=>m.id===form.tripoModel)?.model;
+    // 当前选中模型属于哪家供应商；切供应商时由事件处理把它带到那家的默认模型
+    const providerId=studio?'tripo':(models.find(m=>m.id===form.tripoModel)?.provider||'');
+    form.modelProvider=providerId;
+    const isTripo=providerId==='tripo';
+    const providerModels=providerModelsOf(modelCatalog,providerId);
     const maxFaces=selectedModel?.startsWith('P1')?20000:selectedModel?.startsWith('v2.5')?500000:selectedModel?.startsWith('v3.0')?1000000:studio?2000000:1500000;
     if(Number(form.tripoFaces)>maxFaces)form.tripoFaces=String(maxFaces);
     if(form.studioModel!=='v3.1-20260211')form.geometryQuality='';
+    // 供应商与模型分开选：先挑厂商（带 logo 的卡片），再挑它家的模型 —— 不再是一个混着五家的大下拉
+    const modelSection = studio
+      ? field('Tripo 订阅模型',select('studioModel',models.map(m=>[m.id,esc(m.model)])))
+      : field('生成供应商',providerPicker(modelCatalog,providerId)) +
+        (providerModels.length
+          ? field('模型',choices('tripoModel',providerModels.map(m=>[m.id,esc(m.model.startsWith('P1')?'P1 · 低多边形':m.model)])))
+          : '<p class="help-line">该供应商暂无启用的模型，请到模型配置里开启。</p>');
+    const faceSection=(studio||isTripo)
+      ? field('目标面数',select('tripoFaces',[['','自动（由模型决定）'],...[500,2000,5000,10000,20000,50000,100000,500000,1000000,1500000,2000000].filter(n=>n<=maxFaces).map(n=>[String(n),n.toLocaleString()])]))
+      : '<p class="help-line">面数由该供应商按所选模型自动决定。</p>';
     html = choices('modelSource', [['studio','网页订阅'],['api','API']]) +
       '<p class="help-line">先确认多视图，再生成模型。只有一张图？先补齐其他视角。</p>' +
       uploadBox('front','正面参考 · 点击上传') + `<div class="upload-grid">${uploadBox('side','左侧',true)}${uploadBox('back','背面',true)}${uploadBox('right','右侧',true)}</div>` +
       '<button id="prepare-multiview" class="full">从文字或图片生成四视图</button><button id="load-multiview" class="full">从已创建好的四视图加载</button>' +
       field('资产名称（可选）', `<input class="full" data-field="assetName" aria-label="资产名称" placeholder="留空使用资源 ID" value="${esc(form.assetName)}">${current?'<button id="save-asset-name" class="full">保存名称</button>':''}`) +
       (!current ? field('资产分类',select('assetType',Object.entries(TYPES).map(([k,v])=>[k,v[0]]))) : '') +
-      field('3D 模型',select(studio?'studioModel':'tripoModel',models.map(m=>[m.id,esc(m.model.startsWith('P1')?'P1 · 低多边形':m.model)]))) +
-      field('目标面数',select('tripoFaces',[['','自动（由模型决定）'],...[500,2000,5000,10000,20000,50000,100000,500000,1000000,1500000,2000000].filter(n=>n<=maxFaces).map(n=>[String(n),n.toLocaleString()])])) +
+      modelSection + faceSection +
       (studio ? (form.studioModel==='v3.1-20260211'?field('几何精度',select('geometryQuality',[['','标准'],['detailed','高精度 · 更多细节']])):'') + toggle('modelQuad','四边面拓扑') : '') +
       toggle('tripoTexture','生成纹理') + (form.tripoTexture ? toggle('tripoPbr','PBR 材质') + (studio ? field('贴图质量',select('textureQuality',[['standard','标准'],['extreme','极高 · 细节优先']])) + field('导出贴图尺寸',choices('textureSize',[['2048','2K'],['4096','4K'],['8192','8K']])) + '<p class="help-line">尺寸为导出目标；实际细节取决于生成结果。高精度与高质量贴图会增加积分和等待时间。</p>' : '') : '') +
       (studio && studioHealth && !studioHealth.ready ? '<button id="connect-session" class="full">连接网页订阅 · 点击登录</button>' : '') +
-      `<a class="help-line" href="/settings.html">${studio?"模型设置":"模型配置 · 地址与 Key"}</a><p class="help-line">${form.mode==='batch'?'每张图片生成一个独立资产，依次执行，失败后停止。':(studio?'使用网页订阅积分，后台自动生成、下载并保存到当前资产。':'直接调用 Tripo，完成后保存模型和新版本。')}${version?'重新生成会保留现有版本。':''}</p>` +
+      `<a class="help-line" href="/settings.html">${studio?"模型设置":"模型配置 · 地址与 Key"}</a><p class="help-line">${form.mode==='batch'?'每张图片生成一个独立资产，依次执行，失败后停止。':(studio?'使用网页订阅积分，后台自动生成、下载并保存到当前资产。':`直接调用 ${esc(providerMeta(providerId).name)} API，完成后保存模型和新版本。`)}${version?'重新生成会保留现有版本。':''}</p>` +
       (version ? '<button id="review-model">查看模型四视图</button>' : '');
     action = version ? '重新生成模型' : '生成模型';
-    context = 'Tripo API · 生成完成后可预览与下载';
-    context = studio ? `Studio 后台生成 · ${form.geometryQuality==='detailed'?'高精度':'标准几何'} · ${form.tripoTexture?(form.textureQuality==='extreme'?'极高贴图':'标准贴图')+' · '+(Number(form.textureSize)/1024)+'K 导出':'白模'}` : context;
+    context = studio ? `Studio 后台生成 · ${form.geometryQuality==='detailed'?'高精度':'标准几何'} · ${form.tripoTexture?(form.textureQuality==='extreme'?'极高贴图':'标准贴图')+' · '+(Number(form.textureSize)/1024)+'K 导出':'白模'}` : `${providerMeta(providerId).name} API · 生成完成后可预览与下载`;
     renderServiceStatus();
 
 
@@ -850,6 +912,12 @@ function renderParameters() {
       (el) =>
         (el.onclick = () => {
           updateForm(el.dataset.choice, el.dataset.value);
+          // 切换供应商：自动带到那家的默认模型（没有默认就第一个）
+          if (el.dataset.choice === "modelProvider" && el.dataset.value) {
+            const candidates = modelCatalog.models.filter(m=>m.enabled && m.service==='model3d' && m.provider===el.dataset.value);
+            const next = (candidates.find(m=>m.default) || candidates[0])?.id;
+            if (next) updateForm("tripoModel", next);
+          }
           // 低模档位：选中档位后同步"目标面数"输入框与滑块
           if (el.dataset.choice === "faceTier" && el.dataset.value)
             updateForm("faces", Number(el.dataset.value));
@@ -1228,7 +1296,9 @@ async function runTool() {
       const studio=form.modelSource==='studio';
       if(!studio) modelCatalog = await api('/api/settings/catalog');
       const model = studio ? {id:form.studioModel} : modelCatalog.models.find(m=>m.id===form.tripoModel && m.enabled && m.service==='model3d');
-      if (!studio && (!model || !modelCatalog.providers.find(p=>p.id===model.provider)?.key_configured)) throw new Error('请先在模型设置中配置 Tripo Key');
+      if (!studio && !model) throw new Error('所选模型不可用，请重新选择供应商与模型');
+      if (!studio && !modelCatalog.providers.find(p=>p.id===model.provider)?.key_configured)
+        throw new Error(`请先在模型配置中填写 ${providerMeta(model.provider).name} 的 API Key`);
       const promptLimit=studio?1000:1024;
       if (form.mode==='text' && (!form.prompt.trim() || [...form.prompt].length>promptLimit)) throw new Error(`填写 1–${promptLimit} 字的模型描述`);
       if (form.mode==='multi' && !['front','side','back','right'].every(v=>uploads[v])) throw new Error('请先补齐正面、背面、左侧和右侧四张参考图');
