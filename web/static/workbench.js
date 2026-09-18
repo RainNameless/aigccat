@@ -14,7 +14,7 @@ import { viewerTools } from "./viewer.js?v=opened-cache-19";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { starterPresets, loadPresets, savePresets } from './creative-presets.js?v=1';
-import { PROVIDERS, openAddAccount, openSubscription } from './accounts.js?v=1';
+import { PROVIDERS, openAddAccount, openSubscription } from './accounts.js?v=3';
 
 const $ = (id) => document.getElementById(id);
 const esc = (value) =>
@@ -165,10 +165,48 @@ let collection = "all",
   painting = false;
 let creationOptions=creationConfig();
 let studioHealth=null;
+let blenderHealth = null; // 顶栏 Blender 绿点：{reachable, version}
+function currentAccountsOf(provider, kind) {
+  return (modelCatalog.accounts || []).filter((a) => a.provider === provider && a.kind === kind);
+}
 function renderServiceStatus(){
   const studio=form.modelSource==='studio';const ready=studioHealth?.ready;
-  $('service-status').textContent=studio?(ready?'网页订阅 · 已连接':studioHealth?'网页订阅 · 未连接':'网页订阅 · 检查连接…'):'Tripo API';
-  $('service-status').title=studio?(ready?'后台执行器可用；历史失败请在任务记录查看':studioHealth?.error||'正在检查当前连接'):'';
+  const el=$('service-status');if(!el)return;
+  // 当前账号名：订阅 → 当前订阅账号；API → 当前供应商的当前 Key 账号
+  let accountName='';
+  if(studio){const a=currentAccountsOf('tripo','subscription').find(x=>x.active);accountName=a?` · ${a.name}`:'';}
+  else{const pid=form.modelProvider||'tripo';const a=currentAccountsOf(pid,'apikey').find(x=>x.active);accountName=a?` · ${a.name}`:'';}
+  // 快速切换：订阅账号下拉（多于一条才有意义；一条也放，保持一致）
+  const subs=currentAccountsOf('tripo','subscription');
+  const switcher=subs.length
+    ? `<select id="studio-account-switch" onclick="event.stopPropagation()" title="切换订阅账号" style="margin-left:6px;font-size:11px;background:transparent;color:inherit;border:1px solid var(--border);border-radius:4px;padding:1px 2px">${subs.map(s=>`<option value="${esc(s.id)}" ${s.active?'selected':''}>${esc(s.name)}</option>`).join('')}</select>`
+    : '';
+  const blenderDot=blenderHealth?.reachable
+    ? `<span class="status-dot" title="Blender ${esc(blenderHealth.version||'')} · 容器内可用" style="background:var(--green)"></span>`
+    : '';
+  el.innerHTML=
+    (studio
+      ? `<span class="status-dot" style="background:${ready?'var(--green)':'var(--red,#ef4444)'}"></span>网页订阅 · ${ready?'已连接':studioHealth?'未连接':'检查连接…'}${esc(accountName)}`
+      : `<span class="status-dot" style="background:${modelCatalog.providers?.find(p=>p.id===(form.modelProvider||'tripo'))?.key_configured?'var(--green)':'var(--red,#ef4444)'}"></span>${esc(providerMeta(form.modelProvider||'tripo').name)} API${esc(accountName)}`)
+    + switcher
+    + (blenderHealth===null?'':`<span title="${blenderHealth.reachable?`Blender ${blenderHealth.version||''} 已连接`:'Blender 未连接'}" style="margin-left:8px;font-size:11px;color:${blenderHealth.reachable?'var(--green)':'var(--muted)'}">⬡ Blender</span>`);
+  el.title=studio?(ready?'后台执行器可用；历史失败请在任务记录查看':studioHealth?.error||'正在检查当前连接'):'';
+  $('studio-account-switch')?.addEventListener('change',safe(async e=>{
+    try{
+      await api('/api/settings/accounts/'+encodeURIComponent(e.target.value),'PATCH',{active:true});
+      await Promise.all([refreshStudioHealth(),refreshModelCatalog()]);
+      const s=(modelCatalog.accounts||[]).find(x=>x.id===e.target.value);
+      toast(`已切换订阅账号 → ${s?.name||e.target.value}`);
+    }catch(err){toast(String(err.message||err).slice(0,160));}
+  }));
+}
+async function refreshModelCatalog(){
+  modelCatalog=await api('/api/settings/catalog').catch(()=>({models:[],providers:[],accounts:[]}));
+  renderServiceStatus();
+}
+async function refreshBlenderHealth(){
+  try{const r=await api('/api/services/health');blenderHealth=r.blender||null;}catch{blenderHealth=null;}
+  renderServiceStatus();
 }
 async function refreshStudioHealth(){
   const before=studioHealth?.ready;
@@ -191,6 +229,7 @@ function syncConnectEntry(){
   }else if(!need&&existing){existing.remove();}
 }
 setInterval(refreshStudioHealth,30000);
+setInterval(refreshBlenderHealth,30000);
 /* ---------- 连接网页订阅会话：整个弹窗（含 VNC 登录画面）已移到共享模块 accounts.js，
    与「添加 AI 账号」统一入口共用；这里只保留回调：连上后刷新积分状态。 ---------- */
 function openConnectDialog() {
@@ -2394,8 +2433,9 @@ async function boot() {
     toast("工作台设置暂不可用：" + e.message);
   }
   void refreshStudioHealth();
+  void refreshBlenderHealth();  // 顶栏 Blender 绿点：进页面就探一次，不等 30 秒轮询
   serviceInfo = await api("/api/settings/services").catch(() => ({}));
-  modelCatalog = await api('/api/settings/catalog').catch(()=>({models:[],providers:[]}));
+  modelCatalog = await api('/api/settings/catalog').catch(()=>({models:[],providers:[],accounts:[]}));
   renderServiceStatus();
   await refreshAssets();
   if(selectionSerial !== bootSelection) return;

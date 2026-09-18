@@ -1,8 +1,9 @@
-/* accounts.js —— 统一的「添加 AI 账号」弹窗（参考 sub2api 的 CreateAccountModal 交互）
-   一个入口管两类凭据：
-   · 订阅账号（目前只有 Tripo）→ 网页登录窗口（容器内 noVNC 画面内嵌）
-   · API Key（五家通用；混元是 SecretId:SecretKey 两段）
-   自包含：自带 dialog 元素与样式，工作台（ES module import）与后台（window.AigccatAccounts）都能用。 */
+/* accounts.js —— 统一的「添加 AI 账号」弹窗 + 账号池操作（参考 sub2api 的账号管理交互）
+   支持每家供应商多条账号：API Key 或订阅（登录会话）。
+   · 添加：平台 logo 卡片 → 账号类型 → 名称 + 凭据（或登录窗口）→ 可反复添加
+   · 切换：apikey = 换当前 Key（同步进供应商）；订阅 = 原子替换活跃会话文件（执行器每次请求重读，即时生效）
+   · 开关 / 删除 / 捕获登录会话：均走 /api/settings/accounts 系列
+   自包含：自带 dialog 元素与样式，工作台（import）与后台（window.AigccatAccounts）共用。 */
 
 export const PROVIDERS = {
   tripo: {
@@ -36,6 +37,13 @@ export const PROVIDERS = {
     keyHint: "Hitem3D 开放平台的 accessToken",
     subscription: false,
   },
+  custom: {
+    name: "自定义", color: "#06B6D4",
+    svg: '<path d="M9 7V3"/><path d="M15 7V3"/><path d="M7 7h10v4a5 5 0 0 1-10 0Z"/><path d="M12 12v4"/><path d="M8 20h8"/>',
+    keyHint: "任何 OpenAI 兼容接口（自定义中转 / 本地服务等）",
+    subscription: false,
+    custom: true,
+  },
 };
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
@@ -53,6 +61,15 @@ async function sendJSON(url, method, body) {
   if (!r.ok) { const t = await r.text().catch(() => ""); throw new Error(t.slice(0, 300) || `请求失败（${r.status}）`); }
   return r.json().catch(() => ({}));
 }
+
+/* ---------- 账号池操作（admin / 顶栏快速切换共用） ---------- */
+export const accountsApi = {
+  list: () => getJSON("/api/settings/catalog"),
+  add: (body) => sendJSON("/api/settings/accounts", "POST", body),
+  patch: (id, body) => sendJSON(`/api/settings/accounts/${encodeURIComponent(id)}`, "PATCH", body),
+  remove: (id) => sendJSON(`/api/settings/accounts/${encodeURIComponent(id)}`, "DELETE"),
+  capture: (id) => sendJSON(`/api/settings/accounts/${encodeURIComponent(id)}/capture`, "POST", {}),
+};
 
 /* ---------- 弹窗骨架 ---------- */
 let dialogEl = null;
@@ -91,7 +108,9 @@ function ensureDialog() {
 .acct-note{font-size:12px;color:var(--muted,#9a9aa2);line-height:1.6;margin:8px 0}
 .acct-vnc{margin:10px 0;border:1px solid rgba(128,128,128,.3);border-radius:8px;overflow:hidden;background:#000;aspect-ratio:16/10;max-height:56vh}
 .acct-vnc iframe{display:block;width:100%;height:100%;border:0}
-.acct-step-tag{font-size:11px;color:var(--muted,#9a9aa2);letter-spacing:.04em;margin:10px 0 4px}`;
+.acct-step-tag{font-size:11px;color:var(--muted,#9a9aa2);letter-spacing:.04em;margin:10px 0 4px}
+.acct-accounts{margin-top:4px}
+.acct-accounts .acct-sub{margin:0 0 6px}`;
     document.head.append(style);
   }
   dialogEl = document.createElement("dialog");
@@ -182,26 +201,26 @@ export async function openSubscription({ onConnected } = {}) {
   subFlow.timer = setInterval(() => pollSubscription(false).catch(() => {}), 3000);
 }
 
-/* ---------- 统一的「添加 AI 账号」弹窗 ---------- */
+/* ---------- 统一的「添加 AI 账号」弹窗（可反复添加） ---------- */
 export async function openAddAccount({ onSaved } = {}) {
   let catalog;
-  try { catalog = await getJSON("/api/settings/catalog"); }
+  try { catalog = await accountsApi.list(); }
   catch (e) { const host = openShell("添加 AI 账号", ""); host.innerHTML = `<p class="acct-note">${esc(String(e.message || e))}</p>`; return; }
-  const host = openShell("添加 AI 账号", "选平台 → 选账号类型（订阅 / API Key）→ 一处配好");
+  const host = openShell("添加 AI 账号", "选平台 → 选账号类型 → 命名并填凭据；可反复添加多条");
   const state = { pid: null, type: null };
   const providerCards = Object.entries(PROVIDERS).map(([pid, meta]) => {
-    const p = catalog.providers.find((x) => x.id === pid);
-    const configured = !!p?.key_configured;
+    const n = pid === "custom"
+      ? catalog.accounts.filter((a) => a.kind === "custom").length
+      : catalog.accounts.filter((a) => a.provider === pid).length;
     return `<button type="button" data-pid="${pid}" style="--acct-color:${meta.color}" title="${esc(meta.keyHint)}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${meta.svg}</svg>
-      <span>${esc(meta.name)}</span>${configured ? "<em>Key 已配置</em>" : "<em>未配置</em>"}</button>`;
+      <span>${esc(meta.name)}</span><em>${n ? n + " 个账号" : "未添加"}</em></button>`;
   }).join("");
 
   function render() {
     const meta = state.pid ? PROVIDERS[state.pid] : null;
-    const p = state.pid ? catalog.providers.find((x) => x.id === state.pid) : null;
     let html = `<p class="acct-step-tag">① 选择平台</p><div class="acct-picker" role="group" aria-label="选择平台">${providerCards}</div>`;
-    if (meta) {
+    if (meta && !meta.custom) {
       const types = meta.subscription
         ? `<button type="button" data-type="subscription" style="--acct-color:${meta.color}"><strong>订阅账号 · 网页登录</strong><small>用你自己的订阅积分，消耗的是账号额度，不是 API 计费</small></button>
            <button type="button" data-type="apikey" style="--acct-color:${meta.color}"><strong>API Key · 开发者接口</strong><small>按官方 API 计费，适合程序化生成</small></button>`
@@ -211,69 +230,138 @@ export async function openAddAccount({ onSaved } = {}) {
     host.innerHTML = html;
     host.querySelectorAll("[data-pid]").forEach((b) => b.addEventListener("click", () => {
       state.pid = b.dataset.pid; state.type = null; render();
+      if (state.pid === "custom") mountCustomForm();
     }));
     host.querySelectorAll("[data-type]").forEach((b) => b.addEventListener("click", () => {
       state.type = b.dataset.type; render();
       if (state.type === "subscription") mountSubscription();
       if (state.type === "apikey") mountKeyForm();
     }));
-    function mountSubscription() {
-      const box = document.createElement("div");
-      box.className = "acct-body";
-      host.append(box);
-      subFlow.onDone = async (result) => { onSaved?.({ type: "subscription", pid: state.pid, result }); };
-      subFlow.state = null; subFlow.host = box;
-      renderSubscription();
-      pollSubscription(true).catch(() => {});
-      stopSubTimer();
-      subFlow.timer = setInterval(() => pollSubscription(false).catch(() => {}), 3000);
-    }
-    function mountKeyForm() {
-      const box = document.createElement("div");
-      box.className = "acct-body";
-      const configured = !!p?.key_configured;
-      const twin = PROVIDERS[state.pid]?.twinKey;
-      box.innerHTML =
-        `<div class="acct-status"><span class="acct-dot ${configured ? "on" : "off"}"></span><span>${configured ? "已保存 Key（留空提交则保持不变）" : "尚未配置 Key"}</span></div>` +
-        (twin
-          ? `<label>SecretId<input data-key="id" autocomplete="off" spellcheck="false" placeholder="腾讯云 CAM 的 SecretId"></label>
-             <label>SecretKey<input data-key="secret" type="password" autocomplete="new-password" placeholder="腾讯云 CAM 的 SecretKey"></label>`
-          : `<label>API Key<input data-key="one" type="password" autocomplete="new-password" placeholder="${esc(PROVIDERS[state.pid]?.keyHint || "")}"></label>`) +
-        `<p class="acct-note">Key 仅保存在服务器（数据卷），不回显、不写入前端。${twin ? "两项都填才会更新。" : ""}</p>
-         <div class="acct-actions"><button data-save class="primary" ${configured ? "" : "disabled"}>保存</button><button data-close>关闭</button></div>`;
-      host.append(box);
-      const input = box.querySelector("[data-key]");
-      if (twin) {
-        const both = box.querySelectorAll("[data-key]");
-        const save = box.querySelector("[data-save]");
-        const check = () => { save.disabled = ![...both].every((i) => i.value.trim()); };
-        both.forEach((i) => i.addEventListener("input", check));
-      } else {
-        input.addEventListener("input", () => { box.querySelector("[data-save]").disabled = !input.value.trim(); });
+  }
+  /* 自定义接入：OpenAI 兼容地址 + Key；文字模型与生图模型可同在一个账号，生图模型直接给「图片创作」用 */
+  function mountCustomForm() {
+    const box = document.createElement("div");
+    box.className = "acct-body";
+    box.innerHTML =
+      `<p class="acct-step-tag">② 自定义模型服务（OpenAI 兼容）</p>
+       <label>账号名称<input data-acct="name" placeholder="默认：自定义接入" maxlength="40"></label>
+       <label>API 地址（Base URL）<input data-cust="base_url" placeholder="https://你的中转或服务/v1" spellcheck="false"></label>
+       <label>API Key<input data-cust="key" type="password" autocomplete="new-password" placeholder="服务的 API Key"></label>
+       <label>文字模型名（可选）<input data-cust="text_model" placeholder="如 gpt-4o / 自定义名称" spellcheck="false"></label>
+       <label>生图模型名（可选）<input data-cust="image_model" placeholder="填了即出现在「图片创作」可选模型里" spellcheck="false"></label>
+       <p class="acct-note">文字与生图可以是同一个账号（同一地址与 Key）；两个模型名至少填一个。「设为当前」开启时，添加后平台立即切到它。</p>
+       <label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input data-cust="set_default" type="checkbox" checked style="width:auto">设为当前使用</label>
+       <div class="acct-actions"><button data-save class="primary" disabled>保存账号</button><button data-close>关闭</button></div>`;
+    host.append(box);
+    const fields = box.querySelectorAll("[data-cust]");
+    const save = box.querySelector("[data-save]");
+    const check = () => {
+      const v = Object.fromEntries([...fields].map((f) => [f.dataset.cust, f.value]));
+      save.disabled = !(v.base_url.trim() && v.key.trim() && (v.text_model.trim() || v.image_model.trim()));
+    };
+    fields.forEach((f) => f.addEventListener("input", check));
+    box.querySelector("[data-close]").addEventListener("click", closeModal);
+    save.addEventListener("click", async () => {
+      save.disabled = true;
+      const v = Object.fromEntries([...fields].map((f) => [f.dataset.cust, f.value]));
+      try {
+        await accountsApi.add({
+          name: box.querySelector('[data-acct="name"]').value,
+          provider: "custom", kind: "custom",
+          api_key: v.key.trim(), base_url: v.base_url.trim(),
+          text_model: v.text_model.trim() || null, image_model: v.image_model.trim() || null,
+          set_default: box.querySelector('[data-cust="set_default"]').checked,
+        });
+        closeModal();
+        onSaved?.({ type: "custom", pid: "custom" });
+      } catch (e) {
+        save.disabled = false;
+        box.querySelector(".acct-note").textContent = String(e.message || e).slice(0, 240);
       }
-      box.querySelector("[data-close]").addEventListener("click", closeModal);
-      box.querySelector("[data-save]").addEventListener("click", async () => {
-        const save = box.querySelector("[data-save]");
-        save.disabled = true;
-        try {
-          const fresh = await getJSON("/api/settings/catalog");  // 重新拉取，避免覆盖别处的并发修改
-          const target = fresh.providers.find((x) => x.id === state.pid);
-          if (!target) throw Error("供应商不存在，请刷新后重试");
-          target.api_key = twin
+    });
+  }
+  /* 名称输入（两种类型都要，默认自动编号） */
+  function nameField(count) {
+    return `<label>账号名称<input data-acct="name" placeholder="默认：账号 ${count}" maxlength="40"></label>`;
+  }
+  function mountSubscription() {
+    const box = document.createElement("div");
+    box.className = "acct-body";
+    const count = catalog.accounts.filter((a) => a.provider === "tripo" && a.kind === "subscription").length + 1;
+    box.innerHTML = `<p class="acct-step-tag">③ 登录一份新的订阅账号</p>${nameField(count)}`;
+    host.append(box);
+    const subBox = document.createElement("div");
+    box.append(subBox);
+    subFlow.onDone = async () => {
+      // 登录成功：建账号 → 把刚登录的会话捕获给它
+      const name = box.querySelector('[data-acct="name"]').value.trim();
+      try {
+        const created = await accountsApi.add({ name, provider: "tripo", kind: "subscription" });
+        const account = created.accounts?.find((a) => a.kind === "subscription" && a.name === (name || `账号 ${count}`)) || created.accounts?.at(-1);
+        if (account) await accountsApi.capture(account.id);
+        onSaved?.({ type: "subscription", pid: "tripo" });
+      } catch (e) { onSaved?.({ type: "subscription", pid: "tripo", error: String(e.message || e) }); }
+    };
+    subFlow.state = null; subFlow.host = subBox;
+    renderSubscription();
+    pollSubscription(true).catch(() => {});
+    stopSubTimer();
+    subFlow.timer = setInterval(() => pollSubscription(false).catch(() => {}), 3000);
+  }
+  function mountKeyForm() {
+    const box = document.createElement("div");
+    box.className = "acct-body";
+    const twin = PROVIDERS[state.pid]?.twinKey;
+    const count = catalog.accounts.filter((a) => a.provider === state.pid).length + 1;
+    const current = catalog.accounts.find((a) => a.provider === state.pid && a.kind === "apikey" && a.active);
+    box.innerHTML =
+      `<p class="acct-step-tag">③ 填入 API Key（当前账号：${current ? esc(current.name) : "无"}，新账号默认不切换）</p>` +
+      nameField(count) +
+      (twin
+        ? `<label>SecretId<input data-key="id" autocomplete="off" spellcheck="false" placeholder="腾讯云 CAM 的 SecretId"></label>
+           <label>SecretKey<input data-key="secret" type="password" autocomplete="new-password" placeholder="腾讯云 CAM 的 SecretKey"></label>`
+        : `<label>API Key<input data-key="one" type="password" autocomplete="new-password" placeholder="${esc(PROVIDERS[state.pid]?.keyHint || "")}"></label>`) +
+      `<p class="acct-note">Key 仅保存在服务器（数据卷），不回显、不写入前端。填完可继续添加下一条。</p>
+       <div class="acct-actions"><button data-save class="primary" disabled>保存账号</button><button data-again disabled>保存并再添加一条</button><button data-close>关闭</button></div>`;
+    host.append(box);
+    const inputs = box.querySelectorAll("[data-key]");
+    const save = box.querySelector("[data-save]"), again = box.querySelector("[data-again]");
+    const check = () => { const ok = [...inputs].every((i) => i.value.trim()); save.disabled = !ok; again.disabled = !ok; };
+    inputs.forEach((i) => i.addEventListener("input", check));
+    box.querySelector("[data-close]").addEventListener("click", closeModal);
+    const submit = async (keepOpen) => {
+      save.disabled = again.disabled = true;
+      try {
+        await accountsApi.add({
+          name: box.querySelector('[data-acct="name"]').value,
+          provider: state.pid,
+          kind: "apikey",
+          api_key: twin
             ? `${box.querySelector('[data-key="id"]').value.trim()}:${box.querySelector('[data-key="secret"]').value.trim()}`
-            : box.querySelector('[data-key="one"]').value.trim();
-          await sendJSON("/api/settings/catalog", "PUT", fresh);
+            : box.querySelector('[data-key="one"]').value.trim(),
+        });
+        if (keepOpen) {
+          // 反复添加：清空输入，刷新卡片上的计数
+          try { catalog = await accountsApi.list(); } catch {}
+          inputs.forEach((i) => (i.value = ""));
+          const name = box.querySelector('[data-acct="name"]'); if (name) name.value = "";
+          check();
+          box.querySelector(".acct-note").textContent = "已保存，可继续添加下一条。";
+          onSaved?.({ type: "apikey", pid: state.pid, added: true });
+        } else {
           closeModal();
           onSaved?.({ type: "apikey", pid: state.pid });
-        } catch (e) {
-          save.disabled = false;
-          box.querySelector(".acct-note").textContent = String(e.message || e).slice(0, 240);
         }
-      });
-    }
+      } catch (e) {
+        box.querySelector(".acct-note").textContent = String(e.message || e).slice(0, 240);
+        check();
+      }
+    };
+    save.addEventListener("click", () => submit(false));
+    again.addEventListener("click", () => submit(true));
   }
   render();
 }
 
 /* 暴露给非模块脚本（admin.js 等经典脚本用 window.AigccatAccounts） */
-window.AigccatAccounts = { PROVIDERS, openAddAccount, openSubscription };
+window.AigccatAccounts = { PROVIDERS, openAddAccount, openSubscription, accountsApi };

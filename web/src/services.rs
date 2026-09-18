@@ -36,11 +36,28 @@ pub struct Services {
 pub struct Catalog {
     providers: Vec<Provider>,
     models: Vec<ModelEntry>,
+    #[serde(default)]
+    pub accounts: Vec<Account>,
 }
 #[derive(Clone, Serialize, Deserialize)]
 struct Provider { id: String, name: String, base_url: String, #[serde(default)] api_key: String }
 #[derive(Clone, Serialize, Deserialize)]
 struct ModelEntry { id: String, provider: String, model: String, service: String, enabled: bool, #[serde(default)] default: bool }
+/// AI 账号：每家供应商可存多条（参考 sub2api 的账号池）。
+/// · apikey 账号持有自己的 Key；「当前」账号的 Key 会同步进 provider.api_key（生成链路不用改）
+/// · subscription 账号对应一份登录会话文件（/data/studio/sessions/<id>.json），
+///   切换 = 把对应文件原子替换到执行器读的活跃路径（执行器每次请求都重读盘，即时生效）
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Account {
+    pub id: String,
+    pub name: String,
+    pub provider: String,
+    pub kind: String, // "apikey" | "subscription"
+    #[serde(default)] api_key: String,
+    #[serde(default)] pub enabled: bool,
+    #[serde(default)] pub active: bool,
+    #[serde(default)] pub created_at: u64,
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Update {
@@ -274,9 +291,48 @@ impl Catalog {
                 });
             }
         }
+        self.ensure_default_accounts();
+    }
+    /// 默认账号：已配过 Key 的供应商自动登记一条「默认账号」，已登录过订阅的自动登记一条「默认订阅」
+    /// —— 账号列表一开始就不是空的，老配置无缝变成第一条账号。
+    fn ensure_default_accounts(&mut self) {
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let next_id = |accounts: &[Account]| format!("acct-{}", now.max(1) * 1000 + accounts.len() as u64 + 1);
+        for p in self.providers.clone() {
+            let builtin = crate::providers::builtin(&p.id);
+            let is_builtin = builtin.is_some();
+            let has_key_account = self.accounts.iter().any(|a| a.provider == p.id && a.kind == "apikey");
+            if is_builtin && !p.api_key.trim().is_empty() && !has_key_account {
+                self.accounts.push(Account {
+                    id: next_id(&self.accounts), name: "默认账号".into(), provider: p.id.clone(),
+                    kind: "apikey".into(), api_key: p.api_key.clone(), enabled: true, active: true, created_at: now,
+                });
+            }
+        }
+        // 订阅：已经登录过（活跃会话文件存在）却没有登记的，补一条「默认订阅」并捕获当前会话
+        if !self.accounts.iter().any(|a| a.kind == "subscription") {
+            if let Some(slot) = studio_active_session().filter(|f| f.exists()) {
+                let id = next_id(&self.accounts);
+                if capture_session_file(&slot, &id).is_ok() {
+                    self.accounts.push(Account {
+                        id: id.clone(), name: "默认订阅".into(), provider: "tripo".into(),
+                        kind: "subscription".into(), api_key: String::new(), enabled: true, active: true, created_at: now,
+                    });
+                }
+            }
+        }
     }
     fn public(&self) -> Value {
-        json!({"providers":self.providers.iter().map(|p| json!({"id":p.id,"name":p.name,"base_url":p.base_url,"key_configured":!p.api_key.is_empty()})).collect::<Vec<_>>(),"models":self.models})
+        json!({
+            "providers":self.providers.iter().map(|p| json!({"id":p.id,"name":p.name,"base_url":p.base_url,"key_configured":!p.api_key.is_empty()})).collect::<Vec<_>>(),
+            "models":self.models,
+            "accounts":self.accounts.iter().map(|a| json!({
+                "id":a.id,"name":a.name,"provider":a.provider,"kind":a.kind,
+                "enabled":a.enabled,"active":a.active,"created_at":a.created_at,
+                "key_configured":!a.api_key.trim().is_empty(),
+                "has_session": a.kind=="subscription" && std::path::Path::new(&studio_session_slot(&a.id)).exists(),
+            })).collect::<Vec<_>>()
+        })
     }
     fn resolve(&self, id: &str) -> Result<(String, Service), String> {
         let m = self.models.iter().find(|m| m.id==id && m.enabled).ok_or("模型已停用或不存在")?;
@@ -293,6 +349,8 @@ pub async fn put_catalog(State(st): State<Arc<AppState>>, headers: HeaderMap, pa
     let _guard = FILE_LOCK.lock().map_err(|_|(StatusCode::INTERNAL_SERVER_ERROR,"配置锁不可用".into()))?;
     let mut settings = load(Path::new(FILE),&st.cfg).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
     let old = settings.catalog();
+    // 账号池由专用接口管理；模型配置管理页不感知它，防止整包 PUT 把账号悄悄清掉
+    c.accounts = old.accounts.clone();
     let bad = |s:&str| (StatusCode::BAD_REQUEST,s.to_string());
     if c.providers.len()>100 || c.models.len()>1000 { return Err(bad("配置数量超过上限")); }
     let mut ids = std::collections::HashSet::new();
@@ -613,4 +671,255 @@ pub fn rig_text_model(cfg: &AppConfig, id: &str) -> Result<Service,String> {
     if service.api_key.trim().is_empty() { return Err("所选文字模型尚未配置 Key".into()); }
     validate_url(&service.base_url)?;
     Ok(service)
+}
+
+/* ─────────── AI 账号池（多账号 · 切换 · 订阅会话捕获）─────────── */
+
+/// 订阅会话的存放地：与执行器同一个数据卷（备份一个卷全带走）。
+fn studio_dir() -> std::path::PathBuf {
+    std::env::var("STUDIO_STATE_DIR").ok().filter(|s| !s.is_empty()).map(std::path::PathBuf::from).unwrap_or_else(|| "/data/studio".into())
+}
+fn studio_active_session() -> Option<std::path::PathBuf> {
+    let dir = studio_dir();
+    // 执行器默认路径是 <dir>/studio-session.auth.json；容器里 supervisor 用 /data/studio 起执行器，两者一致
+    let _ = std::fs::create_dir_all(dir.join("sessions"));
+    Some(dir.join("studio-session.auth.json"))
+}
+fn studio_session_slot(id: &str) -> String { studio_dir().join("sessions").join(format!("{id}.json")).to_string_lossy().into_owned() }
+/// 把一个会话文件原子地放到执行器读的活跃路径（执行器每次请求都重读，切换即时生效）。
+fn activate_session_file(slot: &str) -> Result<(), String> {
+    let active = studio_active_session().ok_or("会话目录不可用")?;
+    let bytes = std::fs::read(slot).map_err(|_| "该账号还没有登录会话，请先为它登录一次".to_string())?;
+    let tmp = active.with_extension("tmp-activate");
+    std::fs::write(&tmp, &bytes).map_err(|_| "无法写入会话文件".to_string())?;
+    std::fs::rename(&tmp, &active).map_err(|_| "无法切换会话文件".to_string())?;
+    Ok(())
+}
+/// 把当前活跃会话捕获为某账号的存档（登录成功后调用）。
+fn capture_session_file(active: &std::path::Path, id: &str) -> Result<(), String> {
+    let bytes = std::fs::read(active).map_err(|_| "当前没有可保存的登录会话".to_string())?;
+    let slot = std::path::PathBuf::from(studio_session_slot(id));
+    if let Some(parent) = slot.parent() { std::fs::create_dir_all(parent).map_err(|_| "无法创建会话存档目录".to_string())?; }
+    std::fs::write(&slot, &bytes).map_err(|_| "无法保存会话存档".to_string())?;
+    Ok(())
+}
+
+fn account_view(settings: &Services) -> Value {
+    settings.catalog().public()
+}
+
+/// 同步「当前」apikey 账号的 Key 到供应商（生成链路读的是 provider.api_key，这样不用改它）。
+fn sync_active_key(catalog: &mut Catalog, provider: &str) {
+    let key = catalog.accounts.iter()
+        .find(|a| a.provider == provider && a.kind == "apikey" && a.active && a.enabled)
+        .map(|a| a.api_key.clone())
+        .unwrap_or_default();
+    if let Some(p) = catalog.providers.iter_mut().find(|p| p.id == provider) { p.api_key = key; }
+}
+/// 把 catalog 里 text/image 的默认模型同步到顶层服务槽（工作台的图片创作/对话用的是它们）。
+fn sync_default_services(settings: &mut Services) {
+    let catalog = settings.catalog.clone().unwrap_or_default();
+    for kind in ["text","image"] {
+        if let Some(m) = catalog.models.iter().find(|m| m.service==kind && m.default && m.enabled) {
+            if let Ok((_,s)) = catalog.resolve(&m.id) {
+                match kind { "text"=>settings.text=s, "image"=>settings.image=s, _=>{} }
+            }
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct AccountCreate { name: Option<String>, provider: String, kind: String, api_key: Option<String>,
+    #[serde(default)] base_url: Option<String>, #[serde(default)] text_model: Option<String>,
+    #[serde(default)] image_model: Option<String>, #[serde(default)] set_default: Option<bool> }
+pub async fn post_account(State(st): State<Arc<AppState>>, headers: HeaderMap, payload: Result<Json<AccountCreate>, axum::extract::rejection::JsonRejection>) -> ApiResult {
+    if !same_origin(&headers) { return Err((StatusCode::FORBIDDEN,"配置变更要求同源 Origin".into())); }
+    let Json(req) = payload.map_err(|_|(StatusCode::BAD_REQUEST,"账号请求格式无效".into()))?;
+    let _guard = FILE_LOCK.lock().map_err(|_|(StatusCode::INTERNAL_SERVER_ERROR,"配置锁不可用".into()))?;
+    let mut settings = load(Path::new(FILE),&st.cfg).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
+    let bad = |s:&str|(StatusCode::BAD_REQUEST,s.to_string());
+    let kind = req.kind.as_str();
+    if !matches!(kind,"apikey"|"subscription"|"custom") { return Err(bad("账号类型无效")); }
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_secs()).unwrap_or(0);
+
+    /* 自定义接入：一个账号 = 一条 OpenAI 兼容服务（地址 + Key + 模型名）。
+       文字模型与生图模型可以是同一个账号；生图模型直接进「图片创作」可用清单。 */
+    if kind == "custom" {
+        let raw_url = req.base_url.as_deref().map(str::trim).filter(|s| !s.is_empty()).ok_or_else(|| bad("自定义接入需要填写 API 地址"))?;
+        let url = validate_url(raw_url).map_err(|e| bad(&e))?;
+        let key = req.api_key.as_deref().map(str::trim).filter(|s| !s.is_empty()).ok_or_else(|| bad("API Key 不能为空"))?.to_string();
+        let text_model = req.text_model.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        let image_model = req.image_model.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        if text_model.is_none() && image_model.is_none() { return Err(bad("至少填写一个模型名（文字或生图）")); }
+        for m in [text_model, image_model].into_iter().flatten() {
+            if m.len() > 120 || m.chars().any(char::is_control) { return Err(bad("模型名无效")); }
+        }
+        let mut catalog = settings.catalog();
+        let name = req.name.unwrap_or_default().trim().chars().take(40).collect::<String>();
+        let name = if name.is_empty() { "自定义接入".to_string() } else { name };
+        let pid = format!("custom-{now}-{}", catalog.providers.len() + 1);
+        catalog.providers.push(Provider { id: pid.clone(), name: name.clone(), base_url: url.to_string().trim_end_matches('/').into(), api_key: key.clone() });
+        let set_default = req.set_default.unwrap_or(true);
+        for (svc, model) in [("text", text_model), ("image", image_model)] {
+            if let Some(model) = model {
+                if set_default { catalog.models.iter_mut().for_each(|m| if m.service==svc { m.default=false; }); }
+                catalog.models.push(ModelEntry { id: format!("{pid}-{svc}"), provider: pid.clone(), model: model.to_string(), service: svc.into(), enabled: true, default: set_default });
+            }
+        }
+        let id = format!("acct-{now}-{}", catalog.accounts.len() as u64 + 1);
+        catalog.accounts.push(Account { id: id.clone(), name, provider: pid, kind: "custom".into(), api_key: key, enabled: true, active: set_default, created_at: now });
+        settings.catalog = Some(catalog);
+        sync_default_services(&mut settings);
+        save(Path::new(FILE),&settings).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
+        return Ok(Json(account_view(&settings)));
+    }
+
+    if crate::providers::builtin(&req.provider).is_none() { return Err(bad("多账号仅支持内置供应商")); }
+    if kind=="apikey" && req.api_key.as_deref().map(str::trim).unwrap_or("").is_empty() { return Err(bad("API Key 不能为空")); }
+    let mut catalog = settings.catalog();
+    // 首条该类型账号自动成为「当前」（已有则保持既有当前，避免添加即打断）
+    let active = !catalog.accounts.iter().any(|a| a.provider==req.provider && a.kind==kind);
+    let id = format!("acct-{now}-{}", catalog.accounts.len() as u64 + 1);
+    let name = req.name.unwrap_or_default().trim().chars().take(40).collect::<String>();
+    let name = if name.is_empty() { format!("账号 {}", catalog.accounts.iter().filter(|a|a.provider==req.provider).count()+1) } else { name };
+    catalog.accounts.push(Account {
+        id: id.clone(), name, provider: req.provider.clone(), kind: kind.into(),
+        api_key: if kind=="apikey" { req.api_key.unwrap().trim().to_string() } else { String::new() },
+        enabled: true, active, created_at: now,
+    });
+    if kind=="apikey" && active { sync_active_key(&mut catalog, &req.provider); }
+    if kind=="subscription" && active {
+        // 首条订阅：把当前活跃会话捕获给它（若有）
+        if let Some(active_file) = studio_active_session().filter(|f| f.exists()) { let _ = capture_session_file(&active_file, &id); }
+    }
+    settings.catalog = Some(catalog);
+    save(Path::new(FILE),&settings).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
+    Ok(Json(account_view(&settings)))
+}
+
+#[derive(Deserialize)]
+pub struct AccountPatch { enabled: Option<bool>, active: Option<bool>, name: Option<String> }
+pub async fn patch_account(State(st): State<Arc<AppState>>, headers: HeaderMap, axum::extract::Path(id): axum::extract::Path<String>, payload: Result<Json<AccountPatch>, axum::extract::rejection::JsonRejection>) -> ApiResult {
+    if !same_origin(&headers) { return Err((StatusCode::FORBIDDEN,"配置变更要求同源 Origin".into())); }
+    let Json(req) = payload.map_err(|_|(StatusCode::BAD_REQUEST,"账号更新格式无效".into()))?;
+    let _guard = FILE_LOCK.lock().map_err(|_|(StatusCode::INTERNAL_SERVER_ERROR,"配置锁不可用".into()))?;
+    let mut settings = load(Path::new(FILE),&st.cfg).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
+    let bad = |s:&str|(StatusCode::BAD_REQUEST,s.to_string());
+    let mut catalog = settings.catalog();
+    let account = catalog.accounts.iter_mut().find(|a| a.id==id).ok_or_else(|| bad("账号不存在"))?;
+    if let Some(name) = req.name.as_deref() {
+        let trimmed = name.trim().chars().take(40).collect::<String>();
+        if !trimmed.is_empty() { account.name = trimmed; }
+    }
+    if let Some(enabled) = req.enabled { account.enabled = enabled; }
+    let wants_active = req.active.unwrap_or(false);
+    let (provider, kind) = (account.provider.clone(), account.kind.clone());
+    if wants_active && !catalog.accounts.iter().any(|a| a.id==id && a.active) {
+        if !catalog.accounts.iter().find(|a| a.id==id).map(|a| a.enabled).unwrap_or(false) { return Err(bad("账号已停用，请先启用再设为当前")); }
+        for a in catalog.accounts.iter_mut() { if a.kind==kind && a.kind=="subscription" { a.active=false; } else if a.kind=="apikey" && a.provider==provider { a.active=false; } }
+        if let Some(a) = catalog.accounts.iter_mut().find(|a| a.id==id) { a.active=true; }
+        match kind.as_str() {
+            "apikey" => sync_active_key(&mut catalog, &provider),
+            "subscription" => activate_session_file(&studio_session_slot(&id)).map_err(|e| bad(&e))?,
+            // 自定义接入：它的模型成为 text / image 的默认，平台（图片创作 / 对话）随之切换
+            _ => {
+                for svc in ["text","image"] {
+                    let target = catalog.models.iter().position(|m| m.provider==provider && m.service==svc);
+                    if let Some(idx) = target {
+                        catalog.models.iter_mut().for_each(|x| if x.service==svc { x.default=false; });
+                        let m = &mut catalog.models[idx]; m.default = true; m.enabled = true;
+                    }
+                }
+            },
+        }
+    }
+    // 停用自定义接入：它的模型一并停用；若其中有默认模型，让位给其他可用模型
+    if req.enabled==Some(false) && kind=="custom" {
+        let was_default = catalog.models.iter().any(|m| m.provider==provider && m.default);
+        for m in catalog.models.iter_mut() { if m.provider==provider { m.enabled=false; m.default=false; } }
+        if was_default {
+            for svc in ["text","image"] {
+                if let Some(other) = catalog.models.iter().find(|m| m.service==svc && m.enabled).cloned() {
+                    if let Some(m) = catalog.models.iter_mut().find(|m| m.id==other.id) { m.default=true; }
+                }
+            }
+        }
+    }
+    // 停用「当前」账号：同类里自动顶一条上来；没有可顶的，供应商 Key 清空（生成会明确报未配置）
+    if req.enabled==Some(false) && kind=="apikey" {
+        let was_active = catalog.accounts.iter().any(|a| a.id==id && a.active);
+        if was_active {
+            let sibling = catalog.accounts.iter().find(|a| a.provider==provider && a.kind=="apikey" && a.enabled && a.id!=id).cloned();
+            if let Some(s) = sibling {
+                for a in catalog.accounts.iter_mut() { if a.provider==provider && a.kind=="apikey" { a.active = a.id==s.id; } }
+            } else {
+                for a in catalog.accounts.iter_mut() { if a.id==id { a.active=false; } }
+            }
+            sync_active_key(&mut catalog, &provider);
+        }
+    }
+    settings.catalog = Some(catalog);
+    sync_default_services(&mut settings);
+    save(Path::new(FILE),&settings).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
+    Ok(Json(account_view(&settings)))
+}
+
+pub async fn delete_account(State(st): State<Arc<AppState>>, headers: HeaderMap, axum::extract::Path(id): axum::extract::Path<String>) -> ApiResult {
+    if !same_origin(&headers) { return Err((StatusCode::FORBIDDEN,"配置变更要求同源 Origin".into())); }
+    let _guard = FILE_LOCK.lock().map_err(|_|(StatusCode::INTERNAL_SERVER_ERROR,"配置锁不可用".into()))?;
+    let mut settings = load(Path::new(FILE),&st.cfg).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
+    let mut catalog = settings.catalog();
+    let bad = |s:&str|(StatusCode::BAD_REQUEST,s.to_string());
+    let target = catalog.accounts.iter().find(|a| a.id==id).cloned().ok_or_else(|| bad("账号不存在"))?;
+    catalog.accounts.retain(|a| a.id!=id);
+    if target.kind=="apikey" && target.active { sync_active_key(&mut catalog, &target.provider); }
+    // 自定义接入：连它的接入与模型一起删；默认模型让位给其他可用模型
+    if target.kind=="custom" {
+        let was_default = catalog.models.iter().any(|m| m.provider==target.provider && m.default);
+        catalog.models.retain(|m| m.provider!=target.provider);
+        catalog.providers.retain(|p| p.id!=target.provider);
+        if was_default {
+            for svc in ["text","image"] {
+                if let Some(other) = catalog.models.iter().find(|m| m.service==svc && m.enabled).cloned() {
+                    if let Some(m) = catalog.models.iter_mut().find(|m| m.id==other.id) { m.default=true; }
+                }
+            }
+        }
+    }
+    if target.kind=="subscription" {
+        let _ = std::fs::remove_file(studio_session_slot(&id)); // 该账号的会话存档随账号删除；活跃文件不动
+        let next = catalog.accounts.iter().find(|a| a.kind=="subscription" && a.enabled).cloned();
+        if let Some(n) = next {
+            for a in catalog.accounts.iter_mut() { if a.kind=="subscription" { a.active = a.id==n.id; } }
+            activate_session_file(&studio_session_slot(&n.id)).map_err(|e| bad(&e))?;
+        }
+    }
+    settings.catalog = Some(catalog);
+    sync_default_services(&mut settings);
+    save(Path::new(FILE),&settings).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
+    Ok(Json(account_view(&settings)))
+}
+
+/// 把当前活跃的订阅会话捕获为指定账号（在登录成功、点「我已登录」之后由前端调用）。
+pub async fn capture_account(State(st): State<Arc<AppState>>, headers: HeaderMap, axum::extract::Path(id): axum::extract::Path<String>) -> ApiResult {
+    if !same_origin(&headers) { return Err((StatusCode::FORBIDDEN,"配置变更要求同源 Origin".into())); }
+    let _guard = FILE_LOCK.lock().map_err(|_|(StatusCode::INTERNAL_SERVER_ERROR,"配置锁不可用".into()))?;
+    let mut settings = load(Path::new(FILE),&st.cfg).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
+    let bad = |s:&str|(StatusCode::BAD_REQUEST,s.to_string());
+    let mut catalog = settings.catalog();
+    let account = catalog.accounts.iter().find(|a| a.id==id).cloned().ok_or_else(|| bad("账号不存在"))?;
+    if account.kind!="subscription" { return Err(bad("只有订阅账号需要捕获登录会话")); }
+    let active_file = studio_active_session().ok_or_else(|| bad("会话目录不可用"))?;
+    capture_session_file(&active_file, &id).map_err(|e| bad(&e))?;
+    // 刚登录的这份就是当前账号
+    for a in catalog.accounts.iter_mut() { if a.kind=="subscription" { a.active = a.id==id; a.enabled = true; } }
+    settings.catalog = Some(catalog);
+    save(Path::new(FILE),&settings).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
+    Ok(Json(account_view(&settings)))
+}
+
+/// 登录用户可读的轻量服务健康（顶栏绿点用）：Blender 工作器可达性。
+pub async fn services_health() -> Json<Value> {
+    let blender = crate::blender::status().await;
+    Json(json!({"blender": blender.json()}))
 }
