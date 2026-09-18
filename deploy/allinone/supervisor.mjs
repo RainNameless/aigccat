@@ -11,7 +11,6 @@
 // 本文件同时负责：目录与软链自举、启动顺序与就绪等待、崩溃重启、日志前缀、优雅退出。
 
 import {spawn} from 'node:child_process';
-import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -109,22 +108,9 @@ const BLENDER_URL = process.env.BLENDER_WORKER_URL
 const RIG_URL = process.env.RIG_HOST_URL
   || (HAS_LOCAL_BLENDER ? 'http://127.0.0.1:8791' : 'http://host.docker.internal:8791');
 
-// 登录窗口要访问被墙的上游，容器只能借宿主上的代理出去。
-// 只在启动时探一次「host.docker.internal:7897 通不通」，把结论明确写进日志；
-// 探不通就当直连（用户网络本来不需要代理时这是对的）。显式 STUDIO_PROXY 永远优先。
-const HOST_PROXY = 'http://host.docker.internal:7897';
-async function portOpen(host, port, timeoutMs = 800) {
-  return new Promise((resolve) => {
-    const sock = net.connect({host, port});
-    const done = (ok) => { try { sock.destroy(); } catch {} resolve(ok); };
-    sock.setTimeout(timeoutMs);
-    sock.once('connect', () => done(true));
-    sock.once('timeout', () => done(false));
-    sock.once('error', () => done(false));
-  });
-}
-let STUDIO_PROXY = process.env.STUDIO_PROXY || '';
-if (!STUDIO_PROXY && await portOpen('host.docker.internal', 7897)) STUDIO_PROXY = HOST_PROXY;
+// 登录窗口默认直连上游。宿主上的代理（如 7897）只是构建期用的，运行时不自动借用 ——
+// 确实需要代理才能访问上游的环境，由使用者显式设 STUDIO_PROXY=http://主机:端口。
+const STUDIO_PROXY = process.env.STUDIO_PROXY || '';
 
 const WEB_PORT = 8081;   // 只在容器内回环，对外只有 gateway 的 8080
 const WEB = `http://127.0.0.1:${WEB_PORT}`;
@@ -188,7 +174,7 @@ const children = [
     // （headless 会被 Cloudflare 识破），所以先造一块屏幕出来。
     name: 'xvfb', critical: false,
     cmd: '/usr/bin/Xvfb',
-    args: [DISPLAY, '-screen', '0', '1440x900x24', '-nolisten', 'tcp'],
+    args: [DISPLAY, '-screen', '0', '1920x1080x24', '-nolisten', 'tcp'],
     label: '虚拟屏幕',
     // Xvfb 起的标志是这块 socket 出现；不这样等的话 x11vnc 会先起然后失败重试
     readyFile: `/tmp/.X11-unix/X${DISPLAY.replace(':', '')}`,

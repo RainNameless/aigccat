@@ -734,6 +734,35 @@ fn sync_default_services(settings: &mut Services) {
     }
 }
 
+/// OpenAI 兼容的模型清单：GET {base}/models（sub2api 同款做法——模型跟着账号自动导入）。
+async fn fetch_openai_models(base_url: &str, key: &str) -> Result<Vec<String>, String> {
+    let url = format!("{}/models", base_url.trim_end_matches('/'));
+    let resp = reqwest::Client::builder().timeout(std::time::Duration::from_secs(10)).build()
+        .map_err(|_| "客户端初始化失败".to_string())?
+        .get(&url).bearer_auth(key).send().await
+        .map_err(|_| "无法连接模型清单接口（/models），请检查地址与网络")?;
+    if !resp.status().is_success() { return Err(format!("模型清单接口返回 HTTP {}", resp.status().as_u16())); }
+    let body = bounded_body(resp, 1 << 20).await?;
+    let v: Value = serde_json::from_slice(&body).map_err(|_| "模型清单响应不是有效 JSON".to_string())?;
+    let mut out: Vec<String> = Vec::new();
+    if let Some(arr) = v["data"].as_array() {
+        for item in arr {
+            if let Some(id) = item["id"].as_str() {
+                let id = id.trim();
+                if !id.is_empty() && id.len() <= 120 && !out.iter().any(|x| x == id) { out.push(id.to_string()); }
+                if out.len() >= 50 { break; }
+            }
+        }
+    }
+    Ok(out)
+}
+/// 生图模型的启发式判定：名字像生图就归「图片创作」，其余归文字。
+fn looks_like_image_model(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    ["image","flux","dall","stable","sdxl","sd3","midjourney","kolors","cogview","seedream","imagen","recraft","ideogram","banana"]
+        .iter().any(|k| lower.contains(k))
+}
+
 #[derive(Deserialize)]
 pub struct AccountCreate { name: Option<String>, provider: String, kind: String, api_key: Option<String>,
     #[serde(default)] base_url: Option<String>, #[serde(default)] text_model: Option<String>,
@@ -741,39 +770,56 @@ pub struct AccountCreate { name: Option<String>, provider: String, kind: String,
 pub async fn post_account(State(st): State<Arc<AppState>>, headers: HeaderMap, payload: Result<Json<AccountCreate>, axum::extract::rejection::JsonRejection>) -> ApiResult {
     if !same_origin(&headers) { return Err((StatusCode::FORBIDDEN,"配置变更要求同源 Origin".into())); }
     let Json(req) = payload.map_err(|_|(StatusCode::BAD_REQUEST,"账号请求格式无效".into()))?;
-    let _guard = FILE_LOCK.lock().map_err(|_|(StatusCode::INTERNAL_SERVER_ERROR,"配置锁不可用".into()))?;
-    let mut settings = load(Path::new(FILE),&st.cfg).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
     let bad = |s:&str|(StatusCode::BAD_REQUEST,s.to_string());
     let kind = req.kind.as_str();
     if !matches!(kind,"apikey"|"subscription"|"custom") { return Err(bad("账号类型无效")); }
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_secs()).unwrap_or(0);
 
     /* 自定义接入：一个账号 = 一条 OpenAI 兼容服务（地址 + Key + 模型名）。
-       文字模型与生图模型可以是同一个账号；生图模型直接进「图片创作」可用清单。 */
-    if kind == "custom" {
+       文字模型与生图模型可以是同一个账号；生图模型直接进「图片创作」可用清单。
+       上游模型清单在加锁之前拉取（std Mutex 不能跨 await 持有）。 */
+    let imported_entries = if kind == "custom" {
         let raw_url = req.base_url.as_deref().map(str::trim).filter(|s| !s.is_empty()).ok_or_else(|| bad("自定义接入需要填写 API 地址"))?;
         let url = validate_url(raw_url).map_err(|e| bad(&e))?;
         let key = req.api_key.as_deref().map(str::trim).filter(|s| !s.is_empty()).ok_or_else(|| bad("API Key 不能为空"))?.to_string();
         let text_model = req.text_model.as_deref().map(str::trim).filter(|s| !s.is_empty());
         let image_model = req.image_model.as_deref().map(str::trim).filter(|s| !s.is_empty());
-        if text_model.is_none() && image_model.is_none() { return Err(bad("至少填写一个模型名（文字或生图）")); }
-        for m in [text_model, image_model].into_iter().flatten() {
-            if m.len() > 120 || m.chars().any(char::is_control) { return Err(bad("模型名无效")); }
+        let mut entries: Vec<(bool, String)> = Vec::new();
+        if let Some(t) = text_model { entries.push((false, t.to_string())); }
+        if let Some(i) = image_model { entries.push((true, i.to_string())); }
+        match fetch_openai_models(url.as_str(), &key).await {
+            Ok(list) => {
+                for name in list {
+                    if !entries.iter().any(|(_, n)| n == &name) { entries.push((looks_like_image_model(&name), name)); }
+                }
+            }
+            Err(e) => {
+                if entries.is_empty() { return Err(bad(&format!("读取模型清单失败：{e}。也可手动填模型名后再保存"))); }
+            }
         }
+        if entries.is_empty() { return Err(bad("上游模型清单为空，没有可导入的模型")); }
+        Some((url.to_string().trim_end_matches('/').to_string(), key, entries))
+    } else { None };
+
+    let _guard = FILE_LOCK.lock().map_err(|_|(StatusCode::INTERNAL_SERVER_ERROR,"配置锁不可用".into()))?;
+    let mut settings = load(Path::new(FILE),&st.cfg).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
+
+    if let Some((base, key, entries)) = imported_entries {
         let mut catalog = settings.catalog();
         let name = req.name.unwrap_or_default().trim().chars().take(40).collect::<String>();
         let name = if name.is_empty() { "自定义接入".to_string() } else { name };
         let pid = format!("custom-{now}-{}", catalog.providers.len() + 1);
-        catalog.providers.push(Provider { id: pid.clone(), name: name.clone(), base_url: url.to_string().trim_end_matches('/').into(), api_key: key.clone() });
+        catalog.providers.push(Provider { id: pid.clone(), name: name.clone(), base_url: base.clone(), api_key: key.clone() });
         let set_default = req.set_default.unwrap_or(true);
-        for (svc, model) in [("text", text_model), ("image", image_model)] {
-            if let Some(model) = model {
-                if set_default { catalog.models.iter_mut().for_each(|m| if m.service==svc { m.default=false; }); }
-                catalog.models.push(ModelEntry { id: format!("{pid}-{svc}"), provider: pid.clone(), model: model.to_string(), service: svc.into(), enabled: true, default: set_default });
-            }
+        let mut got_default = std::collections::HashSet::new();
+        for (i, (is_image, model)) in entries.iter().enumerate() {
+            let svc = if *is_image { "image" } else { "text" };
+            let default = set_default && !got_default.contains(svc);
+            if default { catalog.models.iter_mut().for_each(|m| if m.service==svc { m.default=false; }); got_default.insert(svc); }
+            catalog.models.push(ModelEntry { id: format!("{pid}-m-{i}"), provider: pid.clone(), model: model.clone(), service: svc.into(), enabled: true, default });
         }
         let id = format!("acct-{now}-{}", catalog.accounts.len() as u64 + 1);
-        catalog.accounts.push(Account { id: id.clone(), name, provider: pid, kind: "custom".into(), api_key: key, base_url: url.to_string(), enabled: true, active: set_default, created_at: now });
+        catalog.accounts.push(Account { id: id.clone(), name, provider: pid, kind: "custom".into(), api_key: key, base_url: base, enabled: true, active: set_default, created_at: now });
         settings.catalog = Some(catalog);
         sync_default_services(&mut settings);
         save(Path::new(FILE),&settings).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;

@@ -72,7 +72,10 @@ let notice=null;       // 上一次登录流程的结束原因，供界面展示
 async function launchBrowser(proxy){
   // 关掉 Playwright 默认打开的自动化标记：站点前面有 Cloudflare 人机校验，
   // 让它尽量像一个人开的浏览器，少触发挑战/反复重试。
-  const args=['--disable-blink-features=AutomationControlled'];
+  const args=['--disable-blink-features=AutomationControlled',
+    // 窗口铺满虚拟屏幕且从 (0,0) 摆起：谷歌登录的弹窗贴着主窗口弹出，
+    // 屏幕小或窗口乱摆时弹窗会跑到屏幕外（看不到也拖不动）
+    '--start-maximized','--window-position=0,0','--window-size=1920,1080'];
   // 单容器里是以 root 跑在 Docker 中的，这两个开关不加浏览器根本起不来：
   //   --no-sandbox           Chromium 拒绝在 root 下带沙箱运行
   //   --disable-dev-shm-usage Docker 默认 /dev/shm 只有 64MB，渲染进程会崩
@@ -119,7 +122,8 @@ async function startLogin(explicitProxy){
   if(pending)return loginState();
   const proxy=await resolveProxy(explicitProxy);
   const browser=await launchBrowser(proxy);
-  const context=await browser.newContext();
+  // viewport:null = 页面跟着窗口走（铺满 1920x1080），而不是 Playwright 默认的 1280x720 小窗
+  const context=await browser.newContext({viewport:null});
   const page=await context.newPage();
   page.goto(LOGIN_URL,{waitUntil:'domcontentloaded',timeout:60000}).catch(()=>{});
   pending={browser,context,proxy,startedAt:Date.now(),timer:null};

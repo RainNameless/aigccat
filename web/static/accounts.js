@@ -243,7 +243,8 @@ export async function openAddAccount({ onSaved } = {}) {
       if (state.type === "apikey") mountKeyForm();
     }));
   }
-  /* 自定义接入：OpenAI 兼容地址 + Key；文字模型与生图模型可同在一个账号，生图模型直接给「图片创作」用 */
+  /* 自定义接入：OpenAI 兼容地址 + Key；保存时自动读取上游 /models 导入全部模型
+     （名字像生图的归「图片创作」，其余归文字）；也可以手动指定模型名。 */
   function mountCustomForm() {
     const box = document.createElement("div");
     box.className = "acct-body";
@@ -252,9 +253,9 @@ export async function openAddAccount({ onSaved } = {}) {
        <label>账号名称<input data-acct="name" placeholder="默认：自定义接入" maxlength="40"></label>
        <label>API 地址（Base URL）<input data-cust="base_url" placeholder="https://你的中转或服务/v1" spellcheck="false"></label>
        <label>API Key<input data-cust="key" type="password" autocomplete="new-password" placeholder="服务的 API Key"></label>
-       <label>文字模型名（可选）<input data-cust="text_model" placeholder="如 gpt-4o / 自定义名称" spellcheck="false"></label>
-       <label>生图模型名（可选）<input data-cust="image_model" placeholder="填了即出现在「图片创作」可选模型里" spellcheck="false"></label>
-       <p class="acct-note">文字与生图可以是同一个账号（同一地址与 Key）；两个模型名至少填一个。「设为当前」开启时，添加后平台立即切到它。</p>
+       <label>指定文字模型名（可选）<input data-cust="text_model" placeholder="留空 = 自动导入上游全部模型" spellcheck="false"></label>
+       <label>指定生图模型名（可选）<input data-cust="image_model" placeholder="留空 = 按名字自动归类" spellcheck="false"></label>
+       <p class="acct-note">保存时会自动读取上游的模型清单（/models）并全部导入：名字带 image / flux / seedream 等的归「生图」，进「图片创作」；其余归「文字」。「设为当前」开启时，导入后平台立即切到它。</p>
        <label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input data-cust="set_default" type="checkbox" checked style="width:auto">设为当前使用</label>
        <div class="acct-actions"><button data-save class="primary" disabled>保存账号</button><button data-close>关闭</button></div>`;
     host.append(box);
@@ -262,7 +263,7 @@ export async function openAddAccount({ onSaved } = {}) {
     const save = box.querySelector("[data-save]");
     const check = () => {
       const v = Object.fromEntries([...fields].map((f) => [f.dataset.cust, f.value]));
-      save.disabled = !(v.base_url.trim() && v.key.trim() && (v.text_model.trim() || v.image_model.trim()));
+      save.disabled = !(v.base_url.trim() && v.key.trim());
     };
     fields.forEach((f) => f.addEventListener("input", check));
     box.querySelector("[data-close]").addEventListener("click", closeModal);
