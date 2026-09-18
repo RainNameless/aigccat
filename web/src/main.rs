@@ -131,7 +131,7 @@ async fn main() {
         .route("/api/workbench/state", get(workbench::get_state).put(workbench::put_state))
         .route("/api/media/images", get(workbench::list_images))
         .route("/api/assets/{dir}/{id}/images", post(workbench::generate_images))
-        .route("/api/assets/{dir}/{id}", get(get_asset))
+        .route("/api/assets/{dir}/{id}", get(get_asset).delete(assets::purge_asset))
         // 历史树（append-only、分支保留；checkout 只移动 HEAD）
         .route("/api/assets/{dir}/{id}/history", get(history::get_history))
         .route("/api/assets/{dir}/{id}/history/checkout", post(history::checkout))
