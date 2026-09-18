@@ -16,29 +16,21 @@ It is not a "look, it makes a model" demo. It exists to solve the unglamorous pr
 
 ## Screenshots
 
-### v0.4: Multi-account pool · Custom model services · Model assignment
+### Multi-account pool & custom model services (v0.4)
 
 **One page manages every model credential** — a sub2api-style account pool: each
 provider can hold multiple accounts (subscription / API key / custom model service),
 with live status dots, one-click "current" switching, enable/disable and delete.
 
-![AI accounts](docs/screenshots/accounts-page.png)
-
 **Custom model services**: any OpenAI-compatible endpoint plugs in — enter the base
 URL and key, and the upstream model list is imported automatically on save. Text and
 image models can live in the same account; image models appear in Image Studio directly.
-
-![Add account](docs/screenshots/add-account.png)
-
-![Custom model service](docs/screenshots/custom-model.png)
-
 **Model assignment**: pick one model per purpose — image (four-views), text LLM
 (AI rigging), vision (multimodal), 3D — across providers, effective immediately.
-
-**Chat test**: pick any model at the bottom of the accounts page and fire a quick
+A chat test box sits at the bottom of the page: pick any model and fire a quick
 text/image request to prove the account works.
 
-![Chat test](docs/screenshots/chat-test.png)
+![Add AI account](docs/screenshots/add-account.png)
 
 ### Workbench
 
@@ -50,23 +42,13 @@ A first run starts from a single sentence — or upload reference images directl
 
 ![New draft](docs/screenshots/workbench-new.png)
 
-### Model building: five providers + parameter help
+### Model building & recycle bin
 
 No more separate "web subscription / API" UIs — pick a provider and go; whether Tripo
 uses your subscription or an API key is decided by the current account, right on the card.
 Every generation parameter has a ? help button (faces / geometry / quads / texture / PBR /
-texture quality / export size), plus a beginner guide for newcomers.
-
-![Provider picker](docs/screenshots/provider-picker.png)
-
-![Parameter help](docs/screenshots/parameter-help.png)
-
-### Recycle bin: permanent delete
-
-Besides restore, the recycle bin can now **permanently delete assets — MinIO data
-included** (double confirmation, irreversible).
-
-![Permanent delete](docs/screenshots/trash-purge.png)
+texture quality / export size), plus a beginner guide for newcomers. The recycle bin can
+now **permanently delete assets — MinIO data included** (double confirmation, irreversible).
 
 ### Tools
 
