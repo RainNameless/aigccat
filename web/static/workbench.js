@@ -597,9 +597,11 @@ function renderParameters() {
   if (tool === "image") {
     const imageModels=modelCatalog.models.filter(m=>m.enabled && m.service==='image');
     if(!imageModels.some(m=>m.id===form.imageModelId)) form.imageModelId=(imageModels.find(m=>m.default)||imageModels[0])?.id||'';
-    html = promptBox() + promptActions() +
-      field('图像模型',select('imageModelId',imageModels.length?imageModels.map(m=>[m.id,esc(m.model)]):[['','暂无可用模型']])) +
+    // 模型与分辨率放最上面：面板要滚动才能看到下面时，选型是第一眼该看到的东西
+    html =
+      field('图像模型',select('imageModelId',imageModels.length?imageModels.map(m=>[m.id,esc(m.model)]):[['','暂无可用模型 —— 到 AI 账号添加生图模型']])) +
       field('目标分辨率',choices('imageResolution',[['1080','1080p'],['2048','2K'],['3840','4K']])) +
+      promptBox() + promptActions() +
       '<p class="help-line">四张独立图片 · 正面 / 背面 / 左侧 / 右侧</p>' +
       '<button id="creation-settings" class="full">创作设置 · 多方案与画幅</button>';
     action = '生成四视图';
@@ -637,12 +639,12 @@ function renderParameters() {
       ? field('目标面数',select('tripoFaces',[['','自动（由模型决定）'],...[500,2000,5000,10000,20000,50000,100000,500000,1000000,1500000,2000000].filter(n=>n<=maxFaces).map(n=>[String(n),n.toLocaleString()])]))
       : '<p class="help-line">面数由该供应商按所选模型自动决定。</p>';
     html =
+      modelSection + faceSection +
       '<p class="help-line">先确认多视图，再生成模型。只有一张图？先补齐其他视角。</p>' +
       uploadBox('front','正面参考 · 点击上传') + `<div class="upload-grid">${uploadBox('side','左侧',true)}${uploadBox('back','背面',true)}${uploadBox('right','右侧',true)}</div>` +
       '<button id="prepare-multiview" class="full">从文字或图片生成四视图</button><button id="load-multiview" class="full">从已创建好的四视图加载</button>' +
       field('资产名称（可选）', `<input class="full" data-field="assetName" aria-label="资产名称" placeholder="留空使用资源 ID" value="${esc(form.assetName)}">${current?'<button id="save-asset-name" class="full">保存名称</button>':''}`) +
       (!current ? field('资产分类',select('assetType',Object.entries(TYPES).map(([k,v])=>[k,v[0]]))) : '') +
-      modelSection + faceSection +
       (studio ? (form.studioModel==='v3.1-20260211'?field('几何精度',select('geometryQuality',[['','标准'],['detailed','高精度 · 更多细节']])):'') + toggle('modelQuad','四边面拓扑') : '') +
       toggle('tripoTexture','生成纹理') + (form.tripoTexture ? toggle('tripoPbr','PBR 材质') + (studio ? field('贴图质量',select('textureQuality',[['standard','标准'],['extreme','极高 · 细节优先']])) + field('导出贴图尺寸',choices('textureSize',[['2048','2K'],['4096','4K'],['8192','8K']])) + '<p class="help-line">尺寸为导出目标；实际细节取决于生成结果。高精度与高质量贴图会增加积分和等待时间。</p>' : '') : '') +
       '<button id="add-ai-account" class="full">＋ 添加 AI 账号（订阅 / API Key / 自定义）</button>' +
