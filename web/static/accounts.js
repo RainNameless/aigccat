@@ -10,24 +10,28 @@ export const PROVIDERS = {
     name: "Tripo", color: "#7C5CFF",
     svg: '<path d="M12 3 3 20h18Z"/><path d="M12 3v17"/><path d="M3 20 12 12l9 8"/>',
     keyHint: "platform.tripo3d.ai 开发者后台的 API Key",
+    base_url: "https://openapi.tripo3d.ai/v3",
     subscription: true,
   },
   meshy: {
     name: "Meshy", color: "#22C55E",
     svg: '<path d="M4 4h16v16H4Z"/><path d="M4 12h16M12 4v16"/>',
     keyHint: "meshy.ai/settings/api 的 Key（msy_ 开头）",
+    base_url: "https://api.meshy.ai/openapi/v2",
     subscription: false,
   },
   rodin: {
     name: "Rodin", color: "#F59E0B",
     svg: '<circle cx="12" cy="12" r="8"/><path d="M4 12h16"/><path d="M12 4c3.2 2.6 3.2 13.4 0 16"/><path d="M12 4c-3.2 2.6-3.2 13.4 0 16"/>',
     keyHint: "developer.hyper3d.ai 的 API Key",
+    base_url: "https://api.hyper3d.com/api/v2",
     subscription: false,
   },
   hunyuan3d: {
     name: "Hunyuan3D", color: "#0052D9",
     svg: '<path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7a5 5 0 1 0 5 5"/><circle cx="12" cy="12" r="1.4"/>',
     keyHint: "腾讯云 CAM 的 SecretId 与 SecretKey（两项分开填）",
+    base_url: "https://ai3d.tencentcloudapi.com",
     subscription: false,
     twinKey: true,
   },
@@ -35,6 +39,7 @@ export const PROVIDERS = {
     name: "Hi3D", color: "#EC4899",
     svg: '<path d="M6 5v14"/><path d="M6 12h7"/><path d="M13 5v14"/><path d="M19 10v6"/>',
     keyHint: "Hitem3D 开放平台的 accessToken",
+    base_url: "https://api.hitem3d.ai/open-api/v1",
     subscription: false,
   },
   custom: {
@@ -314,20 +319,24 @@ export async function openAddAccount({ onSaved } = {}) {
     const twin = PROVIDERS[state.pid]?.twinKey;
     const count = catalog.accounts.filter((a) => a.provider === state.pid).length + 1;
     const current = catalog.accounts.find((a) => a.provider === state.pid && a.kind === "apikey" && a.active);
+    const official = PROVIDERS[state.pid]?.base_url || "";
+    const liveUrl = catalog.providers.find((p) => p.id === state.pid)?.base_url || official;
     box.innerHTML =
       `<p class="acct-step-tag">③ 填入 API Key（当前账号：${current ? esc(current.name) : "无"}，新账号默认不切换）</p>` +
       nameField(count) +
+      `<label>API 地址（默认官方；有中转/镜像就改成你自己的）<input data-key="url" value="${esc(liveUrl)}" spellcheck="false" placeholder="${esc(official)}"></label>` +
       (twin
         ? `<label>SecretId<input data-key="id" autocomplete="off" spellcheck="false" placeholder="腾讯云 CAM 的 SecretId"></label>
            <label>SecretKey<input data-key="secret" type="password" autocomplete="new-password" placeholder="腾讯云 CAM 的 SecretKey"></label>`
         : `<label>API Key<input data-key="one" type="password" autocomplete="new-password" placeholder="${esc(PROVIDERS[state.pid]?.keyHint || "")}"></label>`) +
-      `<p class="acct-note">Key 仅保存在服务器（数据卷），不回显、不写入前端。填完可继续添加下一条。</p>
+      `<p class="acct-note">Key 仅保存在服务器（数据卷），不回显、不写入前端。地址留空或保持官方值都按官方接口调用。填完可继续添加下一条。</p>
        <div class="acct-actions"><button data-save class="primary" disabled>保存账号</button><button data-again disabled>保存并再添加一条</button><button data-close>关闭</button></div>`;
     host.append(box);
     const inputs = box.querySelectorAll("[data-key]");
     const save = box.querySelector("[data-save]"), again = box.querySelector("[data-again]");
-    const check = () => { const ok = [...inputs].every((i) => i.value.trim()); save.disabled = !ok; again.disabled = !ok; };
-    inputs.forEach((i) => i.addEventListener("input", check));
+    const keyInputs = [...inputs].filter((i) => i.dataset.key !== "url");
+    const check = () => { const ok = keyInputs.every((i) => i.value.trim()); save.disabled = !ok; again.disabled = !ok; };
+    keyInputs.forEach((i) => i.addEventListener("input", check));
     box.querySelector("[data-close]").addEventListener("click", closeModal);
     const submit = async (keepOpen) => {
       save.disabled = again.disabled = true;
@@ -339,11 +348,12 @@ export async function openAddAccount({ onSaved } = {}) {
           api_key: twin
             ? `${box.querySelector('[data-key="id"]').value.trim()}:${box.querySelector('[data-key="secret"]').value.trim()}`
             : box.querySelector('[data-key="one"]').value.trim(),
+          base_url: box.querySelector('[data-key="url"]').value.trim() || null,
         });
         if (keepOpen) {
           // 反复添加：清空输入，刷新卡片上的计数
           try { catalog = await accountsApi.list(); } catch {}
-          inputs.forEach((i) => (i.value = ""));
+          keyInputs.forEach((i) => (i.value = ""));
           const name = box.querySelector('[data-acct="name"]'); if (name) name.value = "";
           check();
           box.querySelector(".acct-note").textContent = "已保存，可继续添加下一条。";

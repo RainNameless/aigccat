@@ -14,7 +14,7 @@ import { viewerTools } from "./viewer.js?v=opened-cache-19";
 import { GLTFExporter } from "three/addons/exporters/GLTFExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { starterPresets, loadPresets, savePresets } from './creative-presets.js?v=1';
-import { PROVIDERS, openAddAccount, openSubscription } from './accounts.js?v=3';
+import { PROVIDERS, openAddAccount, openSubscription } from './accounts.js?v=4';
 
 const $ = (id) => document.getElementById(id);
 const esc = (value) =>

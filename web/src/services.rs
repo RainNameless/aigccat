@@ -52,8 +52,10 @@ pub struct Account {
     pub id: String,
     pub name: String,
     pub provider: String,
-    pub kind: String, // "apikey" | "subscription"
+    pub kind: String, // "apikey" | "subscription" | "custom"
     #[serde(default)] api_key: String,
+    /// API 地址：默认官方端点；填了中转/镜像就随账号切换同步进供应商
+    #[serde(default)] pub base_url: String,
     #[serde(default)] pub enabled: bool,
     #[serde(default)] pub active: bool,
     #[serde(default)] pub created_at: u64,
@@ -305,7 +307,7 @@ impl Catalog {
             if is_builtin && !p.api_key.trim().is_empty() && !has_key_account {
                 self.accounts.push(Account {
                     id: next_id(&self.accounts), name: "默认账号".into(), provider: p.id.clone(),
-                    kind: "apikey".into(), api_key: p.api_key.clone(), enabled: true, active: true, created_at: now,
+                    kind: "apikey".into(), api_key: p.api_key.clone(), base_url: String::new(), enabled: true, active: true, created_at: now,
                 });
             }
         }
@@ -316,7 +318,7 @@ impl Catalog {
                 if capture_session_file(&slot, &id).is_ok() {
                     self.accounts.push(Account {
                         id: id.clone(), name: "默认订阅".into(), provider: "tripo".into(),
-                        kind: "subscription".into(), api_key: String::new(), enabled: true, active: true, created_at: now,
+                        kind: "subscription".into(), api_key: String::new(), base_url: String::new(), enabled: true, active: true, created_at: now,
                     });
                 }
             }
@@ -329,6 +331,7 @@ impl Catalog {
             "accounts":self.accounts.iter().map(|a| json!({
                 "id":a.id,"name":a.name,"provider":a.provider,"kind":a.kind,
                 "enabled":a.enabled,"active":a.active,"created_at":a.created_at,
+                "base_url":a.base_url,
                 "key_configured":!a.api_key.trim().is_empty(),
                 "has_session": a.kind=="subscription" && std::path::Path::new(&studio_session_slot(&a.id)).exists(),
             })).collect::<Vec<_>>()
@@ -708,13 +711,16 @@ fn account_view(settings: &Services) -> Value {
     settings.catalog().public()
 }
 
-/// 同步「当前」apikey 账号的 Key 到供应商（生成链路读的是 provider.api_key，这样不用改它）。
+/// 同步「当前」apikey 账号的 Key 与 API 地址到供应商（生成链路读的是 provider，这样不用改它）。
 fn sync_active_key(catalog: &mut Catalog, provider: &str) {
-    let key = catalog.accounts.iter()
-        .find(|a| a.provider == provider && a.kind == "apikey" && a.active && a.enabled)
-        .map(|a| a.api_key.clone())
-        .unwrap_or_default();
-    if let Some(p) = catalog.providers.iter_mut().find(|p| p.id == provider) { p.api_key = key; }
+    let account = catalog.accounts.iter()
+        .find(|a| a.provider == provider && a.kind == "apikey" && a.active && a.enabled).cloned();
+    if let Some(p) = catalog.providers.iter_mut().find(|p| p.id == provider) {
+        p.api_key = account.as_ref().map(|a| a.api_key.clone()).unwrap_or_default();
+        if let Some(url) = account.as_ref().map(|a| a.base_url.trim()).filter(|s| !s.is_empty()) {
+            p.base_url = url.trim_end_matches('/').to_string();
+        }
+    }
 }
 /// 把 catalog 里 text/image 的默认模型同步到顶层服务槽（工作台的图片创作/对话用的是它们）。
 fn sync_default_services(settings: &mut Services) {
@@ -767,7 +773,7 @@ pub async fn post_account(State(st): State<Arc<AppState>>, headers: HeaderMap, p
             }
         }
         let id = format!("acct-{now}-{}", catalog.accounts.len() as u64 + 1);
-        catalog.accounts.push(Account { id: id.clone(), name, provider: pid, kind: "custom".into(), api_key: key, enabled: true, active: set_default, created_at: now });
+        catalog.accounts.push(Account { id: id.clone(), name, provider: pid, kind: "custom".into(), api_key: key, base_url: url.to_string(), enabled: true, active: set_default, created_at: now });
         settings.catalog = Some(catalog);
         sync_default_services(&mut settings);
         save(Path::new(FILE),&settings).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
@@ -776,6 +782,11 @@ pub async fn post_account(State(st): State<Arc<AppState>>, headers: HeaderMap, p
 
     if crate::providers::builtin(&req.provider).is_none() { return Err(bad("多账号仅支持内置供应商")); }
     if kind=="apikey" && req.api_key.as_deref().map(str::trim).unwrap_or("").is_empty() { return Err(bad("API Key 不能为空")); }
+    // API 地址：默认官方端点；填了中转就校验后存进账号（当前账号的地址会同步进供应商）
+    let custom_url = match req.base_url.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(u) => Some(validate_url(u).map_err(|e| bad(&e))?.to_string().trim_end_matches('/').to_string()),
+        None => None,
+    };
     let mut catalog = settings.catalog();
     // 首条该类型账号自动成为「当前」（已有则保持既有当前，避免添加即打断）
     let active = !catalog.accounts.iter().any(|a| a.provider==req.provider && a.kind==kind);
@@ -785,6 +796,7 @@ pub async fn post_account(State(st): State<Arc<AppState>>, headers: HeaderMap, p
     catalog.accounts.push(Account {
         id: id.clone(), name, provider: req.provider.clone(), kind: kind.into(),
         api_key: if kind=="apikey" { req.api_key.unwrap().trim().to_string() } else { String::new() },
+        base_url: custom_url.unwrap_or_default(),
         enabled: true, active, created_at: now,
     });
     if kind=="apikey" && active { sync_active_key(&mut catalog, &req.provider); }
