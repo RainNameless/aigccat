@@ -19,7 +19,12 @@ mod openai;
 mod ops;
 mod store;
 mod services;
+mod providers;
 mod tripo;
+mod meshy;
+mod rodin;
+mod hi3d;
+mod hunyuan;
 mod model_jobs;
 mod studio_jobs;
 mod validator;
@@ -126,7 +131,7 @@ async fn main() {
         .route("/api/workbench/state", get(workbench::get_state).put(workbench::put_state))
         .route("/api/media/images", get(workbench::list_images))
         .route("/api/assets/{dir}/{id}/images", post(workbench::generate_images))
-        .route("/api/assets/{dir}/{id}", get(get_asset))
+        .route("/api/assets/{dir}/{id}", get(get_asset).delete(assets::purge_asset))
         // 历史树（append-only、分支保留；checkout 只移动 HEAD）
         .route("/api/assets/{dir}/{id}/history", get(history::get_history))
         .route("/api/assets/{dir}/{id}/history/checkout", post(history::checkout))
@@ -173,6 +178,11 @@ async fn main() {
         .route("/api/settings/services/test", post(services::test_services))
         .route("/api/settings/services/models", get(services::service_models))
         .route("/api/settings/catalog", get(services::get_catalog).put(services::put_catalog))
+        .route("/api/settings/accounts", post(services::post_account))
+        .route("/api/settings/accounts/{id}", axum::routing::patch(services::patch_account).delete(services::delete_account))
+        .route("/api/settings/accounts/{id}/capture", post(services::capture_account))
+        .route("/api/settings/accounts/{id}/fetch-models", post(services::fetch_models))
+        .route("/api/services/health", get(services::services_health))
         .layer(middleware::from_fn(resource_length))
         .layer(CompressionLayer::new().quality(CompressionLevel::Fastest))
         .with_state(state);

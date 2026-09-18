@@ -174,8 +174,9 @@ RUN npm install -g opencode-ai@${OPENCODE_VERSION} --no-audit --no-fund
 ARG PLAYWRIGHT_DOWNLOAD_HOST=""
 ENV DISPLAY=:99
 RUN set -eux; \
-    apt-get update -o Acquire::Retries=8; \
+    apt-get update -o Acquire::Retries=10; \
     apt-get install -y --no-install-recommends --fix-missing \
+      -o Acquire::Retries=10 -o Acquire::http::Pipeline-Depth=0 \
       xvfb x11vnc novnc websockify \
       fonts-liberation fonts-noto-cjk; \
     rm -rf /var/lib/apt/lists/*

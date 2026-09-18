@@ -4,8 +4,12 @@ name: publish all-in-one image
 # 这样别人不用在本地编译 Rust、也不用拉基础镜像，一条 docker run 就能跑。
 #
 # 产物：ghcr.io/rainnameless/aigccat:latest          —— 跟随 main 最新
+#       ghcr.io/rainnameless/aigccat:test           —— 跟随 test 分支（验收用，不影响 latest）
 #       ghcr.io/rainnameless/aigccat:sha-<短提交>   —— 固定版本，可复现
 #       ghcr.io/rainnameless/aigccat:<git tag>      —— 打 tag 时
+#
+# ⚠ test 分支的构建只打 :test 与 :sha-，**绝不打 :latest** ——
+#   test 是待验收代码，main 合并（即人工确认）之前不允许成为对外默认版本。
 #
 # 两个架构各在原生 runner 上构建后合并成一个 manifest（不用 QEMU 模拟：
 # opencode-ai 装的是原生二进制，模拟构建容易失败且极慢）。
@@ -21,7 +25,7 @@ name: publish all-in-one image
 
 on:
   push:
-    branches: [main]
+    branches: [main, test]
     tags: ['v*']
   workflow_dispatch:
 
@@ -103,7 +107,13 @@ jobs:
         working-directory: /tmp/digests
         run: |
           SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          TAGS="-t ${IMAGE}:latest -t ${IMAGE}:sha-${SHORT_SHA}"
+          # main → :latest + :sha-；test → :test + :sha-（绝不打 :latest）
+          TAGS="-t ${IMAGE}:sha-${SHORT_SHA}"
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            TAGS="${TAGS} -t ${IMAGE}:latest"
+          elif [ "${GITHUB_REF_NAME}" = "test" ]; then
+            TAGS="${TAGS} -t ${IMAGE}:test"
+          fi
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then TAGS="${TAGS} -t ${IMAGE}:${GITHUB_REF_NAME}"; fi
           docker buildx imagetools create ${TAGS} \
             $(printf "${IMAGE}@sha256:%s " *)
@@ -111,4 +121,9 @@ jobs:
           IMAGE: ${{ env.IMAGE }}
 
       - name: Show result
-        run: docker buildx imagetools inspect ${{ env.IMAGE }}:latest
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "test" ]; then
+            docker buildx imagetools inspect ${{ env.IMAGE }}:test
+          else
+            docker buildx imagetools inspect ${{ env.IMAGE }}:latest
+          fi
