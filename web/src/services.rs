@@ -929,6 +929,37 @@ pub async fn patch_account(State(st): State<Arc<AppState>>, headers: HeaderMap, 
     Ok(Json(account_view(&settings)))
 }
 
+/// 重新读取上游模型清单（GET /models）并补进已有账号 —— 上游上新模型后点一次即可。
+/// 注意：std Mutex 不能跨 await，上游拉取放在加锁之前。
+pub async fn fetch_models(State(st): State<Arc<AppState>>, headers: HeaderMap, axum::extract::Path(id): axum::extract::Path<String>) -> ApiResult {
+    if !same_origin(&headers) { return Err((StatusCode::FORBIDDEN,"配置变更要求同源 Origin".into())); }
+    let bad = |s:&str|(StatusCode::BAD_REQUEST,s.to_string());
+    let mut settings = load(Path::new(FILE),&st.cfg).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
+    let (base, key) = {
+        let catalog = settings.catalog();
+        let a = catalog.accounts.iter().find(|a| a.id==id).cloned().ok_or_else(|| bad("账号不存在"))?;
+        if a.kind!="custom" { return Err(bad("只有自定义接入能读取上游模型清单")); }
+        let p = catalog.providers.iter().find(|p| p.id==a.provider).cloned().ok_or_else(|| bad("接入不存在"))?;
+        (p.base_url, if a.api_key.is_empty() { p.api_key } else { a.api_key })
+    };
+    let list = fetch_openai_models(&base, &key).await.map_err(|e| bad(&e))?;
+    let _guard = FILE_LOCK.lock().map_err(|_|(StatusCode::INTERNAL_SERVER_ERROR,"配置锁不可用".into()))?;
+    let mut settings = load(Path::new(FILE),&st.cfg).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
+    let mut catalog = settings.catalog();
+    let pid = catalog.accounts.iter().find(|a| a.id==id).map(|a| a.provider.clone()).unwrap_or_default();
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_secs()).unwrap_or(0);
+    let mut added = 0usize;
+    for name in list {
+        if catalog.models.iter().any(|m| m.provider==pid && m.model==name) { continue; }
+        let svc = if looks_like_image_model(&name) { "image" } else { "text" };
+        catalog.models.push(ModelEntry { id: format!("custom-m-{now}-{added}"), provider: pid.clone(), model: name, service: svc.into(), enabled: true, default: false });
+        added += 1;
+    }
+    settings.catalog = Some(catalog);
+    save(Path::new(FILE),&settings).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
+    Ok(Json(json!({ "added": added, "accounts": account_view(&settings)["accounts"].clone(), "models": account_view(&settings)["models"].clone() })))
+}
+
 pub async fn delete_account(State(st): State<Arc<AppState>>, headers: HeaderMap, axum::extract::Path(id): axum::extract::Path<String>) -> ApiResult {
     if !same_origin(&headers) { return Err((StatusCode::FORBIDDEN,"配置变更要求同源 Origin".into())); }
     let _guard = FILE_LOCK.lock().map_err(|_|(StatusCode::INTERNAL_SERVER_ERROR,"配置锁不可用".into()))?;
@@ -982,6 +1013,7 @@ pub async fn capture_account(State(st): State<Arc<AppState>>, headers: HeaderMap
     save(Path::new(FILE),&settings).map_err(|e|(StatusCode::INTERNAL_SERVER_ERROR,e))?;
     Ok(Json(account_view(&settings)))
 }
+
 
 /// 登录用户可读的轻量服务健康（顶栏绿点用）：Blender 工作器可达性。
 pub async fn services_health() -> Json<Value> {

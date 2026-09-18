@@ -11,3 +11,6 @@ body.embedded>header{display:none!important}body.embedded .chat-app{height:100dv
 .creation-settings-dialog{width:min(520px,90vw);box-sizing:border-box;padding:24px;background:var(--panel);color:inherit;border:1px solid var(--line);border-radius:12px}.creation-settings-dialog::backdrop{background:#0009}.creation-settings-dialog label{display:block;margin:18px 0}.creation-settings-dialog select{display:block;width:100%;margin-top:8px;padding:10px;background:var(--bg);color:inherit;font:inherit}.creation-settings-dialog p{font-size:14px;color:var(--dim)}
 
 body.embedded .chat-app{padding:16px}body.embedded #chat-log{min-height:70px}body.embedded .chat-empty{padding:20px 12px}body.embedded .chat-heading p{margin-bottom:10px}body.embedded #chat-prompt{min-height:64px}
+
+/* 嵌进后台「AI 账号」页时：去掉指向后台的自身链接（已经在后台里了） */
+.embedded .chat-controls a{display:none}

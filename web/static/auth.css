@@ -11,3 +11,6 @@
 .appearance-options{display:flex;flex-wrap:wrap;gap:18px;margin-top:24px}.appearance-options button{display:grid;gap:10px;min-width:200px;text-align:left;padding:16px}.appearance-options small{color:var(--muted)}.theme-sample{display:block;height:95px;border:1px solid var(--border);border-radius:8px}.theme-sample.dark{background:linear-gradient(90deg,#202123 25%,#34373b 25%,#34373b 78%,#292b2e 78%)}.theme-sample.light{background:linear-gradient(90deg,#f0f1f3 25%,#fff 25%,#fff 78%,#e3e6ea 78%)}
 
 #admin-models{scroll-margin-top:80px}.admin-main:has(#admin-models:not([hidden])) .admin-heading{margin-block:18px}
+
+/* 后台「AI 账号」页底部的对话测试：常驻 iframe（切标签不重载，聊天记录在 IndexedDB 里） */
+#admin-chat iframe{width:100%;height:min(560px,70vh);border:1px solid rgba(128,128,128,.3);border-radius:10px;background:transparent;display:block}

@@ -12,7 +12,10 @@ async function api(url,method='GET',body){const r=await fetch(url,{method,cache:
 async function action(fn,success){try{await fn();message(success);await render(false);}catch(e){message(e.message,true);}}
 function modal(title,fields,submit){dialog.innerHTML=`<h2>${esc(title)}</h2><form class="admin-form">${fields}<p data-error class="admin-message error" role="status"></p><div class="dialog-actions"><button type="button" data-close>取消</button><button type="submit" class="primary">保存</button></div></form>`;dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.querySelector('form').onsubmit=async e=>{e.preventDefault();const b=dialog.querySelector('button[type=submit]');b.disabled=true;dialog.querySelector('[data-error]').textContent='';try{await submit(new FormData(e.target));e.target.reset();dialog.close();message('已保存');await render(false);}catch(err){dialog.querySelector('[data-error]').textContent=err.message;}finally{b.disabled=false;}};dialog.showModal();}
 function userDialog(user){modal(user?'编辑账号':'创建账号',`${user?`<p>${esc(user.username)}</p>`:'<label>账号<input name="username" autocomplete="off" pattern="[a-zA-Z0-9_][a-zA-Z0-9_-]{2,31}" required minlength="3" maxlength="32" placeholder="3–32位字母、数字或下划线"></label>'}<label>显示名称<input name="display_name" maxlength="40" value="${esc(user?.display_name||'')}" placeholder="可选"></label><label>角色<select name="role" ${user?.id===currentUser.id?'disabled':''}><option value="member" ${user?.role==='member'?'selected':''}>成员 · 创作与共享资产</option><option value="admin" ${user?.role==='admin'?'selected':''}>管理员 · 账号与全部设置</option></select></label>${user?'':'<label>初始密码<input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="128" placeholder="至少12个字符"></label><small class="muted">成员共享当前资产库；注册入口保持关闭。</small>'}`,async f=>{const b=Object.fromEntries(f);await api(user?'/api/admin/users/'+user.id:'/api/admin/users',user?'PATCH':'POST',b);});}
-async function render(reset=true){const turn=++serial;if(reset)message('');content.hidden=false;document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));try{
+async function render(reset=true){const turn=++serial;if(reset)message('');content.hidden=false;
+  const chat=$('#admin-chat');chat.hidden=tab!=='accounts';
+  if(tab==='accounts'){const frame=chat.querySelector('iframe');if(!frame.getAttribute('src'))frame.src=frame.dataset.src;}
+  document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));try{
  if(tab==='appearance'){
   const current=document.documentElement.dataset.theme||'dark';
   content.innerHTML='<h2>界面主题</h2><p>设置当前浏览器的工作台外观。</p><div class="appearance-options">'+[['dark','石墨灰','深色背景，冷白文字'],['light','白色','浅色背景，清晰对比']].map(([value,label,description])=>`<button data-appearance-theme="${value}" aria-pressed="${current===value}"><span class="theme-sample ${value}"></span><strong>${label}</strong><small>${description}</small></button>`).join('')+'</div>';
@@ -29,27 +32,52 @@ async function render(reset=true){const turn=++serial;if(reset)message('');conte
   const logo=(m,size=16)=>`<svg viewBox="0 0 24 24" fill="none" stroke="${m.color}" stroke-width="1.6" style="width:${size}px;height:${size}px;flex:none">${m.svg}</svg>`;
   const svcLabel={text:'文字',image:'生图',vision:'识图',model3d:'3D'};
   const rows=(catalog.accounts||[]).map(a=>{const m=meta(a);const live=a.kind==='subscription'?a.active&&studio.ready:a.kind==='custom'?a.active:a.active&&a.key_configured;
-   const models=a.kind==='custom'?(catalog.models.filter(x=>x.provider===a.provider).map(x=>svcLabel[x.service]||x.service).join(' + ')||'—'):'';
+   const own=a.kind==='custom'?catalog.models.filter(x=>x.provider===a.provider):[];
+   const kinds=[...new Set(own.map(x=>svcLabel[x.service]||x.service))];
    return `<tr data-id="${esc(a.id)}" data-kind="${esc(a.kind)}" data-enabled="${a.enabled?1:0}">
     <td style="white-space:nowrap"><span class="admin-pill ${a.active?'':'off'}" style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${live?'#22C55E':'#9a9aa2'};display:inline-block"></span>${esc(a.name)}</span></td>
     <td><span style="display:inline-flex;align-items:center;gap:6px">${logo(m)}${esc(m.name)}</span></td>
-    <td>${a.kind==='subscription'?'订阅 · 网页登录':a.kind==='custom'?`自定义${models?' · '+models:''}`:'API Key'}${a.active?'<small> · 当前</small>':''}</td>
+    <td>${a.kind==='subscription'?'订阅 · 网页登录':a.kind==='custom'?`自定义${kinds.length?' · '+kinds.join(' + ')+` · ${own.length} 个模型`:''}`:'API Key'}${a.active?'<small> · 当前</small>':''}</td>
     <td><span class="admin-pill ${a.enabled?'':'off'}">${a.enabled?'已启用':'已停用'}</span></td>
     <td style="white-space:nowrap">
       ${a.active?'':`<button data-activate>设为当前</button>`}
+      ${a.kind==='custom'?`<button data-fetchmodels>获取模型</button>`:''}
       <button data-toggle>${a.enabled?'停用':'启用'}</button>
       <button data-remove>删除</button></td></tr>`;}).join('');
+  // 模型分配：生图 / 文字 LLM / 视觉多模态 / 3D 各指定一条模型（可跨多家挑）
+  const assignRow=(svc,hint)=>{
+    const cands=catalog.models.filter(m=>m.service===svc&&m.enabled);
+    const current=cands.find(m=>m.default);
+    return `<tr><td style="white-space:nowrap"><strong>${svcLabel[svc]||svc}</strong>${hint?`<small> · ${esc(hint)}</small>`:''}</td>
+     <td colspan="2"><select data-assign="${esc(svc)}" ${cands.length?'':'disabled'}>${cands.length
+       ? cands.map(m=>`<option value="${esc(m.id)}" ${current&&current.id===m.id?'selected':''}>${esc(meta({provider:m.provider,kind:'custom'}).name)} · ${esc(m.model)}</option>`).join('')
+       : '<option>暂无可用模型（先添加账号）</option>'}</select></td>
+     <td colspan="2" style="font-size:12px;color:var(--muted)">${current?`当前：${esc(current.model)}`:'未指定'}</td></tr>`;
+  };
   content.innerHTML=`<div class="admin-toolbar"><h2>AI 账号</h2><button id="add-account" class="primary">＋ 添加 AI 账号</button></div>
    <p>模型与凭据统一在这里管理：每家可存多条账号（订阅 / API Key / 自定义模型服务），「当前」账号用于生成；接口地址默认官方、可改中转。</p>
    <p class="table-mobile-hint">左右滑动可查看完整列表。</p>
-   <div class="table-scroll"><table class="admin-table"><thead><tr><th>账号</th><th>平台</th><th>类型</th><th>状态</th><th>操作</th></tr></thead><tbody id="account-rows">${rows||'<tr><td colspan="5" class="admin-empty">还没有账号，点右上角添加</td></tr>'}</tbody></table></div>`;
+   <div class="table-scroll"><table class="admin-table"><thead><tr><th>账号</th><th>平台</th><th>类型</th><th>状态</th><th>操作</th></tr></thead><tbody id="account-rows">${rows||'<tr><td colspan="5" class="admin-empty">还没有账号，点右上角添加</td></tr>'}</tbody></table></div>
+   <div class="admin-toolbar" style="margin-top:22px"><h2>模型分配</h2><span style="font-size:12px;color:var(--muted)">每个用途指定一条模型，可跨多家挑；像模型构建一样随时改</span></div>
+   <div class="table-scroll"><table class="admin-table"><thead><tr><th>用途</th><th colspan="2">指定模型</th><th colspan="2">当前</th></tr></thead><tbody id="assign-rows">
+     ${assignRow('image','四视图生成 / 图片创作')}${assignRow('text','绑骨与 LLM 调用')}${assignRow('vision','识图 · 多模态')}${assignRow('model3d','3D 建模')}
+   </tbody></table></div>`;
   $('#add-account').onclick=()=>window.AigccatAccounts?.openAddAccount({onSaved:()=>{message('已保存');render(false);}});
   $('#account-rows').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const tr=b.closest('tr');const id=tr.dataset.id;
    try{
     if(b.hasAttribute('data-activate')){await api('/api/settings/accounts/'+id,'PATCH',{active:true});message('已切换为当前账号');}
+    else if(b.hasAttribute('data-fetchmodels')){const r=await api('/api/settings/accounts/'+id+'/fetch-models','POST',{});message(`已读取上游模型清单，新增 ${r.added??0} 个模型`);}
     else if(b.hasAttribute('data-toggle')){await api('/api/settings/accounts/'+id,'PATCH',{enabled:tr.dataset.enabled!=='1'});message('已更新');}
     else if(b.hasAttribute('data-remove')){if(!confirm('删除该账号？订阅账号的登录会话存档会一并删除。'))return;await api('/api/settings/accounts/'+id,'DELETE');message('已删除');}
     render(false);
+   }catch(err){message(err.message,true);}};
+  // 模型分配：改默认 → PUT 目录（服务端同步顶层 text/image/vision 槽）
+  $('#assign-rows').onchange=async e=>{const sel=e.target.closest('select');if(!sel)return;
+   try{const cat=await api('/api/settings/catalog');const svc=sel.dataset.assign;
+    cat.models.forEach(m=>{if(m.service===svc)m.default=false;});
+    const target=cat.models.find(m=>m.id===sel.value);if(!target)throw Error('模型不存在');
+    target.default=true;target.enabled=true;
+    await api('/api/settings/catalog','PUT',cat);message(`${svcLabel[svc]||svc}模型已指定：${target.model}`);render(false);
    }catch(err){message(err.message,true);}};
   return;}
  if(tab==='overview'){const o=await api('/api/admin/overview');if(turn!==serial)return;content.innerHTML=`<h2>工作区概览</h2><div class="admin-stats">${[[o.users,'全部账号'],[o.enabled,'已启用'],[o.sessions,'有效登录会话']].map(([n,l])=>`<div class="admin-stat"><span>${l}</span><strong>${n}</strong></div>`).join('')}</div><div class="admin-note"><strong>公开注册 · 已关闭</strong><p>访客无法自行注册。需要新账号时，由管理员在账号管理中创建。</p><button id="go-users">管理账号 →</button></div><div class="admin-note"><strong>共享创作空间</strong><p>成员可以创作和管理共享资产；账号管理与模型服务配置由管理员负责。</p></div>`;$('#go-users').onclick=()=>{location.hash='users';};}

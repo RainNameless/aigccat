@@ -181,6 +181,7 @@ async fn main() {
         .route("/api/settings/accounts", post(services::post_account))
         .route("/api/settings/accounts/{id}", axum::routing::patch(services::patch_account).delete(services::delete_account))
         .route("/api/settings/accounts/{id}/capture", post(services::capture_account))
+        .route("/api/settings/accounts/{id}/fetch-models", post(services::fetch_models))
         .route("/api/services/health", get(services::services_health))
         .layer(middleware::from_fn(resource_length))
         .layer(CompressionLayer::new().quality(CompressionLevel::Fastest))
