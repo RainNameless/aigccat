@@ -300,14 +300,15 @@ impl Catalog {
     fn ensure_default_accounts(&mut self) {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
         let next_id = |accounts: &[Account]| format!("acct-{}", now.max(1) * 1000 + accounts.len() as u64 + 1);
+        // 任何已配过 Key 的接入（内置供应商与自定义接入）都补一条「默认账号」——
+        // 老配置里的 Key 无缝变成账号池里的第一条，账号页一开始就有东西可管。
         for p in self.providers.clone() {
-            let builtin = crate::providers::builtin(&p.id);
-            let is_builtin = builtin.is_some();
             let has_key_account = self.accounts.iter().any(|a| a.provider == p.id && a.kind == "apikey");
-            if is_builtin && !p.api_key.trim().is_empty() && !has_key_account {
+            if !p.api_key.trim().is_empty() && !has_key_account {
                 self.accounts.push(Account {
                     id: next_id(&self.accounts), name: "默认账号".into(), provider: p.id.clone(),
-                    kind: "apikey".into(), api_key: p.api_key.clone(), base_url: String::new(), enabled: true, active: true, created_at: now,
+                    kind: "apikey".into(), api_key: p.api_key.clone(), base_url: p.base_url.clone(),
+                    enabled: true, active: true, created_at: now,
                 });
             }
         }
@@ -451,6 +452,12 @@ pub(crate) async fn check_response(response: reqwest::Response) -> Result<reqwes
     let upstream_code = value["error"]["code"].as_str().unwrap_or("");
     let kind = value["error"]["type"].as_str().unwrap_or("");
     let no_accounts = value["error"]["message"].as_str().unwrap_or("").to_ascii_lowercase().contains("no available compatible accounts");
+    // 有些中转在限流时回 400/500 而不是 429，但文案里写着 rate-limited —— 按限流归类，
+    // 免得把"上游账号都忙"误报成"参数不受支持"，让人去改配置。
+    let rate_limited_msg = {
+        let m = value["error"]["message"].as_str().unwrap_or("").to_ascii_lowercase();
+        m.contains("rate-limited") || m.contains("rate limited") || m.contains("rate_limit")
+    };
     let quota = [upstream_code, kind].iter().any(|s| matches!(*s, "insufficient_quota" | "insufficient_balance" | "billing_hard_limit_reached" | "credit_balance_exhausted"));
     // 5xx 中网关类单独标注，便于区分"供应商慢/网关超时"与"参数/鉴权"问题。
     let gateway = match code { 502 => "/网关错误", 503 => "/服务不可用", 504 => "/网关超时", _ => "" };
@@ -460,6 +467,7 @@ pub(crate) async fn check_response(response: reqwest::Response) -> Result<reqwes
         402 => format!("balance: 供应商要求充值或开通计费（HTTP {code}）"),
         429 if quota => format!("balance: 供应商明确报告额度或余额不足（HTTP {code}）"),
         429 => format!("rate_limit: 请求被限流，不能据此认定余额不足；稍后手动重试（HTTP {code}）"),
+        _ if rate_limited_msg && !quota => format!("rate_limit: 上游账号都在限流中（供应商原文：rate-limited），不是配置问题；稍后手动重试（HTTP {code}）"),
         404 => format!("model_not_found: 模型或接口不存在，请核对地址与模型（HTTP {code}）"),
         400 | 405 | 415 | 422 | 501 => format!("unsupported: 模型、接口或请求参数不受支持，请核对服务能力（HTTP {code}）"),
         500 | 502..=599 => format!("upstream_5xx: 供应商服务错误（HTTP {code}{gateway}）；可能已计费，请勿自动重试"),
