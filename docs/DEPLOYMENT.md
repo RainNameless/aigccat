@@ -14,11 +14,12 @@
 | `opencode` | 内部 `4097` | 可选 | AI 绑骨所需 |
 | **Blender 5.2** | 容器内 `8788` | ✅（单容器自带） | 减面 / 重拓扑 / 部件编辑 / 自动绑骨 |
 | OpenCode → Blender 桥接 | 容器内 `8791` | 可选 | AI 写 Blender 脚本 |
-| Studio 执行器 | 宿主 `8790` | 可选 | Studio 网页订阅会话生成（**唯一留在宿主的一项**） |
+| Studio 执行器（含登录窗口） | 容器内 `8790` | 可选 | 网页订阅会话生成；登录窗口内嵌在网页里（Xvfb + Chromium + noVNC） |
 
 **单容器版把 Blender 5.2 也打进镜像了** —— 减面、重拓扑、部件编辑、自动绑骨开箱可用，不用另装 Blender。
-唯一还在宿主机上的是 **Studio 网页订阅执行器**：它要弹出一个真人操作的浏览器窗口，容器里没有屏幕，
-物理上放不进去（见 [`STUDIO-SESSION.md`](STUDIO-SESSION.md)）。不装它只影响这一条链路。
+**订阅登录的浏览器也在容器里**：容器自带一块虚拟屏幕 + Chromium + VNC，「登录窗口」是内嵌在
+网页对话框里的一幅画面，你直接在页面上点、输入、收验证码（见 [`STUDIO-SESSION.md`](STUDIO-SESSION.md)）。
+**宿主机上不需要装任何东西。**
 
 > ⚠ 镜像有 **amd64 / arm64** 两个版本（Docker 自动选）。差别只在 Blender：
 > **amd64 版自带 Blender 5.2**（实测容器内 decimate 45s / remesh 18s / rig 20s）；
@@ -72,8 +73,9 @@ docker build -f deploy/allinone/Dockerfile \
   --build-arg APT_MIRROR=mirrors.ustc.edu.cn -t aigccat:allinone .
 ```
 
-**这个形态不包含**宿主机上的 Blender / Studio / 绑骨桥接工作器——它们依赖宿主机的 Blender 与已登录网页会话，
-物理上无法进容器，见第 3 节。
+amd64 镜像自带 Blender 5.2、AI 绑骨桥与订阅登录的浏览器（虚拟屏幕 + Chromium + noVNC），
+**宿主机上不需要装任何东西**；arm64 镜像不含 Blender（官方没有 Linux arm64 版），减面/重拓扑/绑骨
+会自动改用宿主机上装好的 Blender（见上方架构表）。
 
 ---
 
@@ -120,7 +122,7 @@ docker compose -f docker-compose.allinone.yml up -d
 1. **能登录**：用原来的账号密码（账号库是搬过来的，密码不变；启动器只在账号库为空时才会建新号并打印初始密码）
 2. **资产数一致**：`curl -b cookies http://localhost:8080/api/assets | jq '.assets|length'`
 3. **模型能下载**：取一个资产的 `.../file/versions/<ver>/model.glb` 应为 200 且是合法 GLB
-4. **宿主工作器还在**：进容器查 `http://127.0.0.1:4097/health`，`ready:true` 且 `blender` 有版本号
+4. **AI 绑骨桥活着**：进容器查 `http://127.0.0.1:4097/health`，`ready:true` 且 `blender` 有版本号（amd64 镜像里 Blender 就在容器内）
 
 **回滚**：旧 volume 不会被动过。
 
