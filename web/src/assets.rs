@@ -236,3 +236,33 @@ pub async fn get_asset(
     let flow_activity = st.store.get_json(&format!("{base}/source/studio_flow_activity.json")).await.unwrap_or(Value::Null);
     Ok(Json(json!({ "asset": asset, "spec": spec, "latest": latest, "jobs": jobs, "flow_activity": flow_activity })))
 }
+
+/// 永久删除：把资产在 MinIO 里的全部对象连根删掉（回收站只能软删，这里补上真删）。
+/// 只动资产前缀，不碰 workbench 状态（回收站列表由前端随后用既有 archive_remove 移出）。
+pub async fn purge_asset(
+    State(st): State<Shared>,
+    headers: axum::http::HeaderMap,
+    Path((dir, id)): Path<(String, String)>,
+) -> ApiResult<Json<Value>> {
+    // 与 services::same_origin 相同的规则：写操作要求 Origin 与 Host 同源
+    let origin_ok = |h: &axum::http::HeaderMap| -> bool {
+        let Some(origin) = h.get("origin").and_then(|v| v.to_str().ok()) else { return false };
+        let Some(host) = h.get("host").and_then(|v| v.to_str().ok()) else { return false };
+        let strip = |s: &str| s.trim_start_matches("http://").trim_start_matches("https://").split('/').next().unwrap_or("").to_string();
+        let expected = std::env::var("SERVICES_PUBLIC_ORIGIN").ok().filter(|s| !s.is_empty()).map(|s| strip(&s)).unwrap_or_else(|| host.to_string());
+        strip(origin) == expected
+    };
+    if !origin_ok(&headers) { return Err((StatusCode::FORBIDDEN, "永久删除要求同源 Origin".into())); }
+    if !CATEGORIES.contains(&dir.as_str()) {
+        return Err((StatusCode::BAD_REQUEST, format!("非法类目: {dir}")));
+    }
+    if id.contains('/') || id.is_empty() || id.len() > 80 {
+        return Err((StatusCode::BAD_REQUEST, "资产编号无效".into()));
+    }
+    let base = format!("{dir}/{id}");
+    // 必须真实存在才删（防误删、也防把软删的空引用清成"成功"）
+    st.store.get_json(&format!("{base}/asset.json")).await
+        .map_err(|_| (StatusCode::NOT_FOUND, "资产不存在（可能已删除）".to_string()))?;
+    st.store.delete_prefix(&format!("{base}/")).await.map_err(err500)?;
+    Ok(Json(json!({ "purged": base })))
+}

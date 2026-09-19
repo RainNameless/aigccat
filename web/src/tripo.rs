@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Duration;
 
-pub const BASE_URL: &str = "https://openapi.tripo3d.ai/v3";
 pub const MODELS: [&str; 4] = ["P1-20260311", "v3.1-20260211", "v3.0-20250812", "v2.5-20250123"];
+#[cfg_attr(not(test), allow(dead_code))] // 默认模型只被单测引用；清单本身在 providers.rs 也有登记
 pub const DEFAULT_MODEL: &str = "P1-20260311";
 
 fn api_source() -> String { "api".into() }

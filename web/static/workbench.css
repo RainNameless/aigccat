@@ -385,6 +385,8 @@ button.parameter-help-button:hover, button.parameter-help-button:focus-visible {
 }
 .segmented {
   display: flex;
+  /* 允许换行：模型 chips 可能有 6 个（如 Rodin），窄面板放不下一行 */
+  flex-wrap: wrap;
   background: var(--input);
   border: 1px solid var(--border);
   border-radius: 5px;
@@ -1694,3 +1696,18 @@ dialog .primary {
 #dialog:has(.vnc-frame){width:900px;max-width:96vw}
 .vnc-frame{margin:10px 0;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:#000;aspect-ratio:16/10;max-height:58vh}
 .vnc-frame iframe{display:block;width:100%;height:100%;border:0}
+
+/* 生成供应商选择：分段式图标卡片（参考 sub2api 添加账号的平台选择控件）。
+   每家一个卡片：自绘 logo + 名称，选中态用该家的品牌色描边；未配 Key 的降透明度并标注。 */
+.provider-picker { display:flex; flex-wrap:wrap; gap:6px; }
+.provider-picker button {
+  flex:1 1 30%; min-width:88px; display:flex; flex-direction:column; align-items:center; gap:5px;
+  padding:10px 6px 8px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--muted);
+  font-size:12px; line-height:1.3; cursor:pointer; transition:border-color .15s, color .15s, box-shadow .15s;
+}
+.provider-picker button svg { width:22px; height:22px; }
+.provider-picker button:hover { color:var(--text); }
+.provider-picker button.active { color:var(--provider-color,#7C5CFF); border-color:var(--provider-color,#7C5CFF); box-shadow:inset 0 0 0 1px var(--provider-color,#7C5CFF); font-weight:600; }
+.provider-picker button em { font-style:normal; font-size:10px; color:var(--muted); opacity:.85; }
+.provider-picker button[data-unconfigured] svg { opacity:.45; }
+@media(max-width:600px){ .provider-picker button { flex:1 1 42%; } }

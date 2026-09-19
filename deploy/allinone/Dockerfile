@@ -174,8 +174,9 @@ RUN npm install -g opencode-ai@${OPENCODE_VERSION} --no-audit --no-fund
 ARG PLAYWRIGHT_DOWNLOAD_HOST=""
 ENV DISPLAY=:99
 RUN set -eux; \
-    apt-get update -o Acquire::Retries=8; \
+    apt-get update -o Acquire::Retries=10; \
     apt-get install -y --no-install-recommends --fix-missing \
+      -o Acquire::Retries=10 -o Acquire::http::Pipeline-Depth=0 \
       xvfb x11vnc novnc websockify \
       fonts-liberation fonts-noto-cjk; \
     rm -rf /var/lib/apt/lists/*
@@ -195,6 +196,8 @@ RUN set -eux; \
 
 # 启动器
 COPY deploy/allinone/supervisor.mjs /srv/supervisor.mjs
+# 示例资产种子（43MB）：全新数据卷首次启动时由 supervisor 种进 MinIO，老卷不碰
+COPY deploy/allinone/seed /opt/seed
 
 # Blender 工作器的脚本（减面/重拓扑/部件编辑/绑骨）。
 # worker_server.py 用 BLENDER_BIN 环境变量定位 Blender，所以同一份代码

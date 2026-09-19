@@ -67,6 +67,7 @@
   button.sm { padding: 6px 14px; font-size: 13px; font-weight: 500; }
   button.ghost { background: transparent; border: 1px solid rgba(103,232,249,.4); color: var(--cyan); box-shadow: none; }
   button.warn { background: linear-gradient(135deg, #b45309, #dc2626); }
+  .danger { background: linear-gradient(135deg, #7f1d1d, #dc2626); outline: 1px solid rgba(248,113,113,.5); }
   button:disabled { background: #334155; box-shadow: none; cursor: not-allowed; transform: none; }
   a.dl { padding: 6px 14px; font-size: 13px; border: 1px solid rgba(103,232,249,.4); color: var(--cyan); border-radius: 9px; text-decoration: none; }
   .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
@@ -462,6 +463,7 @@ async function pageLibrary() {
     <div class="ops" id="batchbar" style="display:none">
       <span class="stat" id="selcount"></span>
       <button class="sm warn" id="batch-delete">删除所选</button>
+      <button class="sm danger" id="batch-purge" hidden title="从 MinIO 永久删除，不可恢复">永久删除所选</button>
       <details><summary>批量高级操作</summary><div class="ops"><select id="batchop">
         <option value="regenerate_references">批量重生成三视图</option>
         <option value="regenerate_models">批量重生成模型</option>
@@ -533,9 +535,32 @@ async function pageLibrary() {
     } catch(e) { $('batchmsg').textContent = '操作失败：'+e.message; }
     finally { deleting=false; $('batch-delete').disabled=false; }
   }
-  $('library-trash').onclick = () => { showTrash=!showTrash; $('library-trash').textContent=showTrash?'返回资产库':'回收站'; $('batch-delete').textContent=showTrash?'恢复所选':'删除所选'; $('batchgo').closest('details').hidden=showTrash; renderList(); };
+  $('library-trash').onclick = () => { showTrash=!showTrash; $('library-trash').textContent=showTrash?'返回资产库':'回收站'; $('batch-delete').textContent=showTrash?'恢复所选':'删除所选'; $('batch-purge').hidden=!showTrash; $('batchgo').closest('details').hidden=showTrash; renderList(); };
   $('select-visible').onclick = () => { document.querySelectorAll('.ck').forEach(c=>c.checked=true); updateBar(); };
   $('batch-delete').onclick = () => moveAssets([...document.querySelectorAll('.ck:checked')].map(c=>c.dataset.ref));
+  // 永久删除：先从 MinIO 连根删（DELETE /api/assets/...），再移出回收站列表；双重确认，不可恢复
+  $('batch-purge').onclick = async () => {
+    const refs = [...document.querySelectorAll('.ck:checked')].map(c=>c.dataset.ref).filter(Boolean);
+    if (deleting || !refs.length) return;
+    if (!confirm(`将永久删除所选 ${refs.length} 个资产（连同 MinIO 里的模型与图片），不可恢复。确定？`)) return;
+    if (!confirm('再确认一次：这是真删，回收站里也找不回来了。')) return;
+    deleting = true; $('batch-purge').disabled = true;
+    const done = [], failed = [];
+    try {
+      for (const ref of refs) {
+        try { await api('/api/assets/' + ref, 'DELETE'); done.push(ref); }
+        catch (e) { failed.push(ref + '（' + String(e.message || e).slice(0, 60) + '）'); }
+      }
+      if (done.length) {
+        const result = await moveToTrash(api, done, true);  // 移出回收站列表
+        archived = new Set(result.archived);
+        allAssets = (await api('/api/assets')).assets || [];  // 已删的不再出现在列表里
+        drawTypes(); await renderList();
+      }
+      $('batchmsg').textContent = `已永久删除 ${done.length} 个` + (failed.length ? `；失败 ${failed.length} 个：${failed.join('；')}` : '');
+    } catch (e) { $('batchmsg').textContent = '操作失败：' + e.message; }
+    finally { deleting = false; $('batch-purge').disabled = false; }
+  };
   $('list').addEventListener('click', e => {
     const button=e.target.closest('[data-delete-asset]');
     if(button) { e.stopPropagation(); moveAssets([button.dataset.deleteAsset]); }

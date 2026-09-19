@@ -11,7 +11,6 @@
 // 本文件同时负责：目录与软链自举、启动顺序与就绪等待、崩溃重启、日志前缀、优雅退出。
 
 import {spawn} from 'node:child_process';
-import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -109,22 +108,9 @@ const BLENDER_URL = process.env.BLENDER_WORKER_URL
 const RIG_URL = process.env.RIG_HOST_URL
   || (HAS_LOCAL_BLENDER ? 'http://127.0.0.1:8791' : 'http://host.docker.internal:8791');
 
-// 登录窗口要访问被墙的上游，容器只能借宿主上的代理出去。
-// 只在启动时探一次「host.docker.internal:7897 通不通」，把结论明确写进日志；
-// 探不通就当直连（用户网络本来不需要代理时这是对的）。显式 STUDIO_PROXY 永远优先。
-const HOST_PROXY = 'http://host.docker.internal:7897';
-async function portOpen(host, port, timeoutMs = 800) {
-  return new Promise((resolve) => {
-    const sock = net.connect({host, port});
-    const done = (ok) => { try { sock.destroy(); } catch {} resolve(ok); };
-    sock.setTimeout(timeoutMs);
-    sock.once('connect', () => done(true));
-    sock.once('timeout', () => done(false));
-    sock.once('error', () => done(false));
-  });
-}
-let STUDIO_PROXY = process.env.STUDIO_PROXY || '';
-if (!STUDIO_PROXY && await portOpen('host.docker.internal', 7897)) STUDIO_PROXY = HOST_PROXY;
+// 登录窗口默认直连上游。宿主上的代理（如 7897）只是构建期用的，运行时不自动借用 ——
+// 确实需要代理才能访问上游的环境，由使用者显式设 STUDIO_PROXY=http://主机:端口。
+const STUDIO_PROXY = process.env.STUDIO_PROXY || '';
 
 const WEB_PORT = 8081;   // 只在容器内回环，对外只有 gateway 的 8080
 const WEB = `http://127.0.0.1:${WEB_PORT}`;
@@ -188,7 +174,7 @@ const children = [
     // （headless 会被 Cloudflare 识破），所以先造一块屏幕出来。
     name: 'xvfb', critical: false,
     cmd: '/usr/bin/Xvfb',
-    args: [DISPLAY, '-screen', '0', '1440x900x24', '-nolisten', 'tcp'],
+    args: [DISPLAY, '-screen', '0', '1920x1080x24', '-nolisten', 'tcp'],
     label: '虚拟屏幕',
     // Xvfb 起的标志是这块 socket 出现；不这样等的话 x11vnc 会先起然后失败重试
     readyFile: `/tmp/.X11-unix/X${DISPLAY.replace(':', '')}`,
@@ -404,6 +390,11 @@ log(HAS_LOCAL_BLENDER
 fs.writeFileSync(path.join(DIR.studio, 'studio-runner-token'), STUDIO_TOKEN + '\n', {mode: 0o600});
 log(`登录窗口在容器内自带：Xvfb ${DISPLAY} + 浏览器 + VNC，网页里点「打开登录窗口」即可操作`
   + (STUDIO_PROXY ? `（经代理 ${STUDIO_PROXY}）` : '（直连，未检测到宿主代理）'));
+// 首次启动：全新数据卷（启动前 game-assets 桶不存在）时，把镜像自带的 4 个示例资产
+// 经 web 的导入 API 灌进去 —— 不能磁盘直拷（MinIO 对象带 xl.meta 元数据，裸文件它不认），
+// 结构必须由后端创建。放在全部服务就绪之后执行；老卷 / 已有数据完全不碰。
+const FRESH_VOLUME = !fs.existsSync(path.join(DIR.minio, 'game-assets'));
+
 for (const name of order) {
   const def = byName(name);
   if (!def) continue;
@@ -413,6 +404,42 @@ for (const name of order) {
 
 // opencode 不阻塞启动：它没就绪只影响 AI 绑骨面板，不影响其它功能
 launch(byName('opencode'));
+
+// 首次启动的示例资产导入：等 web 完全就绪后走它的导入 API（web 只在容器回环，
+// 鉴权由 gateway 负责，内部调用无需登录）。任何一步失败都只记日志，不阻塞启动。
+if (FRESH_VOLUME && fs.existsSync('/opt/seed/manifest.json')) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync('/opt/seed/manifest.json', 'utf8'));
+    for (const item of manifest) {
+      const fd = new FormData();
+      fd.set('name', item.name);
+      fd.set('asset_type', item.type);
+      fd.set('description', item.description);
+      fd.set('file', new Blob([fs.readFileSync(path.join('/opt/seed', item.model))]), item.model);
+      const r = await fetch(`${WEB}/api/assets/import`, { method: 'POST', body: fd });
+      if (!r.ok) { log(`示例资产「${item.name}」导入失败：HTTP ${r.status}（跳过，不影响启动）`); continue; }
+      const created = await r.json();
+      // 预览与四视图：push_file（base64），preview 会自动写回 asset.json
+      const putFile = async (key, file) => {
+        const data = fs.readFileSync(path.join('/opt/seed', file));
+        const rr = await fetch(`${WEB}/api/assets/${created.dir}/${created.asset_id}/file/${key}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bytes_b64: data.toString('base64') }),
+        });
+        if (!rr.ok) log(`示例资产「${item.name}」${key} 上传失败：HTTP ${rr.status}`);
+      };
+      if (item.preview) await putFile('versions/v001/preview.png', item.preview);
+      for (const [view, file] of Object.entries(item.views || {})) {
+        await putFile(`source/reference_${view}.png`, file);
+      }
+      log(`示例资产已导入：${item.name}（${created.asset_id}）`);
+    }
+    log('全新数据卷：4 个示例资产就绪，可在资产库直接查看');
+  } catch (e) {
+    log('示例资产导入异常（不影响启动）：' + (e && e.message));
+  }
+}
 
 if (FIRST_BOOT) {
   fs.writeFileSync(path.join(DATA, '.initialized'), new Date().toISOString() + '\n');

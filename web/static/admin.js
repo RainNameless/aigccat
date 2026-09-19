@@ -8,17 +8,78 @@ const device=agent=>{
 };
 const date=n=>n?new Date(n*1000).toLocaleString():'尚未登录';
 function message(text,error=false){$('#admin-message').textContent=text;$('#admin-message').classList.toggle('error',error);}
-async function api(url,method='GET',body){const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});let j;try{j=await r.json();}catch{throw Error('账号服务响应异常，请刷新重试');}if(r.status===401){location.replace('/login.html?next='+encodeURIComponent(location.pathname+location.hash));throw Error('登录已过期');}if(!r.ok)throw Error(j.error||'操作失败');return j;}
+async function api(url,method='GET',body){const r=await fetch(url,{method,cache:'no-store',headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});let j;try{j=await r.json();}catch{throw Error('账号服务响应异常，请刷新重试');}if(r.status===401){location.replace('/login.html?next='+encodeURIComponent(location.pathname+location.hash));throw Error('登录已过期');}if(!r.ok)throw Error(j.error||'操作失败');return j;}
 async function action(fn,success){try{await fn();message(success);await render(false);}catch(e){message(e.message,true);}}
 function modal(title,fields,submit){dialog.innerHTML=`<h2>${esc(title)}</h2><form class="admin-form">${fields}<p data-error class="admin-message error" role="status"></p><div class="dialog-actions"><button type="button" data-close>取消</button><button type="submit" class="primary">保存</button></div></form>`;dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.querySelector('form').onsubmit=async e=>{e.preventDefault();const b=dialog.querySelector('button[type=submit]');b.disabled=true;dialog.querySelector('[data-error]').textContent='';try{await submit(new FormData(e.target));e.target.reset();dialog.close();message('已保存');await render(false);}catch(err){dialog.querySelector('[data-error]').textContent=err.message;}finally{b.disabled=false;}};dialog.showModal();}
 function userDialog(user){modal(user?'编辑账号':'创建账号',`${user?`<p>${esc(user.username)}</p>`:'<label>账号<input name="username" autocomplete="off" pattern="[a-zA-Z0-9_][a-zA-Z0-9_-]{2,31}" required minlength="3" maxlength="32" placeholder="3–32位字母、数字或下划线"></label>'}<label>显示名称<input name="display_name" maxlength="40" value="${esc(user?.display_name||'')}" placeholder="可选"></label><label>角色<select name="role" ${user?.id===currentUser.id?'disabled':''}><option value="member" ${user?.role==='member'?'selected':''}>成员 · 创作与共享资产</option><option value="admin" ${user?.role==='admin'?'selected':''}>管理员 · 账号与全部设置</option></select></label>${user?'':'<label>初始密码<input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="128" placeholder="至少12个字符"></label><small class="muted">成员共享当前资产库；注册入口保持关闭。</small>'}`,async f=>{const b=Object.fromEntries(f);await api(user?'/api/admin/users/'+user.id:'/api/admin/users',user?'PATCH':'POST',b);});}
-async function render(reset=true){const turn=++serial;if(reset)message('');content.hidden=tab==='models';$('#admin-models').hidden=tab!=='models';document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));try{
+async function render(reset=true){const turn=++serial;if(reset)message('');content.hidden=false;
+  const chat=$('#admin-chat');chat.hidden=tab!=='accounts';
+  if(tab==='accounts'){const frame=chat.querySelector('iframe');if(!frame.getAttribute('src'))frame.src=frame.dataset.src;}
+  document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));try{
  if(tab==='appearance'){
   const current=document.documentElement.dataset.theme||'dark';
   content.innerHTML='<h2>界面主题</h2><p>设置当前浏览器的工作台外观。</p><div class="appearance-options">'+[['dark','石墨灰','深色背景，冷白文字'],['light','白色','浅色背景，清晰对比']].map(([value,label,description])=>`<button data-appearance-theme="${value}" aria-pressed="${current===value}"><span class="theme-sample ${value}"></span><strong>${label}</strong><small>${description}</small></button>`).join('')+'</div>';
   content.querySelectorAll('[data-appearance-theme]').forEach(button=>button.onclick=()=>{window.dispatchEvent(new CustomEvent('aigccat-set-theme',{detail:button.dataset.appearanceTheme}));render(false);});return;
  }
- if(tab==='models'){const frame=$('#admin-models iframe');if(!frame.getAttribute('src'))frame.src=frame.dataset.src;return;}
+
+ if(tab==='accounts'){const studio=await fetch('/api/studio/status',{signal:AbortSignal.timeout(2500)}).then(r=>r.json()).catch(()=>({ready:false}));
+   const catalog=await api('/api/settings/catalog');
+   if(turn!==serial)return;
+  const P=window.AigccatAccounts?.PROVIDERS||{};
+  const meta=a=>{const m=P[a.provider];if(m)return m;
+   const p=catalog.providers.find(x=>x.id===a.provider);
+   return {name:a.kind==='custom'?(p?.name||'自定义'):(p?.name||a.provider),color:'#06B6D4',svg:'<path d="M9 7V3"/><path d="M15 7V3"/><path d="M7 7h10v4a5 5 0 0 1-10 0Z"/><path d="M12 12v4"/><path d="M8 20h8"/>'}};
+  const logo=(m,size=16)=>`<svg viewBox="0 0 24 24" fill="none" stroke="${m.color}" stroke-width="1.6" style="width:${size}px;height:${size}px;flex:none">${m.svg}</svg>`;
+  const svcLabel={text:'文字',image:'生图',vision:'识图',model3d:'3D'};
+  const rows=(catalog.accounts||[]).map(a=>{const m=meta(a);const live=a.kind==='subscription'?a.active&&studio.ready:a.kind==='custom'?a.active:a.active&&a.key_configured;
+   const own=a.kind==='custom'?catalog.models.filter(x=>x.provider===a.provider):[];
+   const kinds=[...new Set(own.map(x=>svcLabel[x.service]||x.service))];
+   return `<tr data-id="${esc(a.id)}" data-kind="${esc(a.kind)}" data-enabled="${a.enabled?1:0}">
+    <td style="white-space:nowrap"><span class="admin-pill ${a.active?'':'off'}" style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${live?'#22C55E':'#9a9aa2'};display:inline-block"></span>${esc(a.name)}</span></td>
+    <td><span style="display:inline-flex;align-items:center;gap:6px">${logo(m)}${esc(m.name)}</span></td>
+    <td>${a.kind==='subscription'?'订阅 · 网页登录':a.kind==='custom'?`自定义${kinds.length?' · '+kinds.join(' + ')+` · ${own.length} 个模型`:''}`:'API Key'}${a.active?'<small> · 当前</small>':''}</td>
+    <td><span class="admin-pill ${a.enabled?'':'off'}">${a.enabled?'已启用':'已停用'}</span></td>
+    <td style="white-space:nowrap">
+      ${a.active?'':`<button data-activate>设为当前</button>`}
+      ${a.kind==='custom'?`<button data-fetchmodels>获取模型</button>`:''}
+      <button data-toggle>${a.enabled?'停用':'启用'}</button>
+      <button data-remove>删除</button></td></tr>`;}).join('');
+  // 模型分配：生图 / 文字 LLM / 视觉多模态 / 3D 各指定一条模型（可跨多家挑）
+  const assignRow=(svc,hint)=>{
+    const cands=catalog.models.filter(m=>m.service===svc&&m.enabled);
+    const current=cands.find(m=>m.default);
+    return `<tr><td style="white-space:nowrap"><strong>${svcLabel[svc]||svc}</strong>${hint?`<small> · ${esc(hint)}</small>`:''}</td>
+     <td colspan="2"><select data-assign="${esc(svc)}" ${cands.length?'':'disabled'}>${cands.length
+       ? cands.map(m=>`<option value="${esc(m.id)}" ${current&&current.id===m.id?'selected':''}>${esc(meta({provider:m.provider,kind:'custom'}).name)} · ${esc(m.model)}</option>`).join('')
+       : '<option>暂无可用模型（先添加账号）</option>'}</select></td>
+     <td colspan="2" style="font-size:12px;color:var(--muted)">${current?`当前：${esc(current.model)}`:'未指定'}</td></tr>`;
+  };
+  content.innerHTML=`<div class="admin-toolbar"><h2>AI 账号</h2><button id="add-account" class="primary">＋ 添加 AI 账号</button></div>
+   <p>模型与凭据统一在这里管理：每家可存多条账号（订阅 / API Key / 自定义模型服务），「当前」账号用于生成；接口地址默认官方、可改中转。</p>
+   <p class="table-mobile-hint">左右滑动可查看完整列表。</p>
+   <div class="table-scroll"><table class="admin-table"><thead><tr><th>账号</th><th>平台</th><th>类型</th><th>状态</th><th>操作</th></tr></thead><tbody id="account-rows">${rows||'<tr><td colspan="5" class="admin-empty">还没有账号，点右上角添加</td></tr>'}</tbody></table></div>
+   <div class="admin-toolbar" style="margin-top:22px"><h2>模型分配</h2><span style="font-size:12px;color:var(--muted)">每个用途指定一条模型，可跨多家挑；像模型构建一样随时改</span></div>
+   <div class="table-scroll"><table class="admin-table"><thead><tr><th>用途</th><th colspan="2">指定模型</th><th colspan="2">当前</th></tr></thead><tbody id="assign-rows">
+     ${assignRow('image','四视图生成 / 图片创作')}${assignRow('text','绑骨与 LLM 调用')}${assignRow('vision','多模态图片理解')}${assignRow('model3d','3D 建模')}
+   </tbody></table></div>`;
+  $('#add-account').onclick=()=>window.AigccatAccounts?.openAddAccount({onSaved:()=>{message('已保存');render(false);}});
+  $('#account-rows').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const tr=b.closest('tr');const id=tr.dataset.id;
+   try{
+    if(b.hasAttribute('data-activate')){await api('/api/settings/accounts/'+id,'PATCH',{active:true});message('已切换为当前账号');}
+    else if(b.hasAttribute('data-fetchmodels')){const r=await api('/api/settings/accounts/'+id+'/fetch-models','POST',{});message(`已读取上游模型清单，新增 ${r.added??0} 个模型`);}
+    else if(b.hasAttribute('data-toggle')){await api('/api/settings/accounts/'+id,'PATCH',{enabled:tr.dataset.enabled!=='1'});message('已更新');}
+    else if(b.hasAttribute('data-remove')){if(!confirm('删除该账号？订阅账号的登录会话存档会一并删除。'))return;await api('/api/settings/accounts/'+id,'DELETE');message('已删除');}
+    render(false);
+   }catch(err){message(err.message,true);}};
+  // 模型分配：改默认 → PUT 目录（服务端同步顶层 text/image/vision 槽）
+  $('#assign-rows').onchange=async e=>{const sel=e.target.closest('select');if(!sel)return;
+   try{const cat=await api('/api/settings/catalog');const svc=sel.dataset.assign;
+    cat.models.forEach(m=>{if(m.service===svc)m.default=false;});
+    const target=cat.models.find(m=>m.id===sel.value);if(!target)throw Error('模型不存在');
+    target.default=true;target.enabled=true;
+    await api('/api/settings/catalog','PUT',cat);message(`${svcLabel[svc]||svc}模型已指定：${target.model}`);render(false);
+   }catch(err){message(err.message,true);}};
+  return;}
  if(tab==='overview'){const o=await api('/api/admin/overview');if(turn!==serial)return;content.innerHTML=`<h2>工作区概览</h2><div class="admin-stats">${[[o.users,'全部账号'],[o.enabled,'已启用'],[o.sessions,'有效登录会话']].map(([n,l])=>`<div class="admin-stat"><span>${l}</span><strong>${n}</strong></div>`).join('')}</div><div class="admin-note"><strong>公开注册 · 已关闭</strong><p>访客无法自行注册。需要新账号时，由管理员在账号管理中创建。</p><button id="go-users">管理账号 →</button></div><div class="admin-note"><strong>共享创作空间</strong><p>成员可以创作和管理共享资产；账号管理与模型服务配置由管理员负责。</p></div>`;$('#go-users').onclick=()=>{location.hash='users';};}
  if(tab==='users'){const result=await api('/api/admin/users');if(turn!==serial)return;content.innerHTML='<div class="admin-toolbar"><h2>账号管理</h2><button id="add-user" class="primary">＋ 创建账号</button></div><div class="admin-toolbar"><input id="user-search" type="search" aria-label="搜索账号" placeholder="搜索账号或名称"></div><p class="table-mobile-hint">左右滑动可查看完整列表。</p><div class="table-scroll"><table class="admin-table"><thead><tr><th>账号</th><th>角色</th><th>状态</th><th>最近登录</th><th>操作</th></tr></thead><tbody id="user-rows"></tbody></table></div>';$('#add-user').onclick=()=>userDialog();const draw=()=>{const query=$('#user-search').value.toLowerCase();$('#user-rows').innerHTML=result.users.filter(u=>(u.username+' '+u.display_name).toLowerCase().includes(query)).map(u=>`<tr><td><strong>${esc(u.display_name||u.username)}</strong><small>${esc(u.username)}${u.id===currentUser.id?' · 当前账号':''}</small></td><td>${u.role==='admin'?'管理员':'成员'}</td><td><span class="admin-pill ${u.enabled?'':'off'}">${u.enabled?'已启用':'已停用'}</span></td><td>${esc(date(u.last_login))}</td><td><button data-edit="${u.id}">编辑</button>${u.id!==currentUser.id?`<button data-reset="${u.id}">重置密码</button><button data-toggle="${u.id}">${u.enabled?'停用':'启用'}</button>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="admin-empty">没有匹配的账号</td></tr>';};$('#user-search').oninput=draw;draw();$('#user-rows').onclick=e=>{const b=e.target.closest('button');if(!b)return;const id=b.dataset.edit||b.dataset.reset||b.dataset.toggle,u=result.users.find(x=>x.id===id);if(b.dataset.edit)userDialog(u);if(b.dataset.reset)modal('重置 '+u.username+' 的密码','<p>保存后，该账号的所有旧登录会话将退出。</p><label>新密码<input name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="128"></label>',f=>api('/api/admin/users/'+id+'/password','POST',Object.fromEntries(f)));if(b.dataset.toggle)modal((u.enabled?'停用 ':'启用 ')+u.username,`<p>${u.enabled?'该账号将立即退出所有设备，启用后可重新登录。':'恢复该账号的登录与工作区访问。'}</p>`,()=>api('/api/admin/users/'+id,'PATCH',{enabled:!u.enabled}));};}
  if(tab==='security'){const result=await api('/api/auth/sessions');if(turn!==serial)return;content.innerHTML=`<h2>账号安全</h2><p>${esc(currentUser.display_name)} · ${esc(currentUser.username)}</p><form id="password-form" class="admin-form"><label>当前密码<input name="old_password" type="password" autocomplete="current-password" required maxlength="128"></label><label>新密码<input name="new_password" type="password" autocomplete="new-password" required minlength="12" maxlength="128" placeholder="至少12个字符"></label><label>确认新密码<input name="confirm" type="password" autocomplete="new-password" required minlength="12" maxlength="128"></label><button type="submit" class="primary">修改密码</button><small class="muted">修改后保留当前登录，其他设备会退出。</small></form><div class="admin-toolbar"><h2>登录设备</h2><button id="revoke-others" ${result.sessions.filter(s=>!s.current).length?'':'disabled'}>退出其他设备</button></div><p class="table-mobile-hint">左右滑动可查看完整列表。</p><div class="table-scroll"><table class="admin-table"><thead><tr><th>设备</th><th>登录时间</th><th>最近活动</th><th></th></tr></thead><tbody>${result.sessions.map(s=>`<tr><td style="max-width:320px;white-space:normal">${esc(device(s.agent))}${s.current?'<small class="admin-pill">当前设备</small>':''}</td><td>${esc(date(s.created_at))}</td><td>${esc(date(s.last_seen))}</td><td>${s.current?'':`<button data-revoke="${s.id}">退出</button>`}</td></tr>`).join('')}</tbody></table></div>`;$('#password-form').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));if(b.new_password!==b.confirm){message('两次输入的新密码不一致',true);return;}const button=e.target.querySelector('button');button.disabled=true;await action(()=>api('/api/auth/password','POST',b),'密码已修改，其他设备已退出');if(button.isConnected)button.disabled=false;};$('#revoke-others').onclick=()=>action(()=>api('/api/auth/sessions/revoke','POST',{}),'其他设备已退出');content.querySelectorAll('[data-revoke]').forEach(b=>b.onclick=()=>action(()=>api('/api/auth/sessions/revoke','POST',{id:b.dataset.revoke}),'该设备已退出'));}
@@ -26,7 +87,7 @@ async function render(reset=true){const turn=++serial;if(reset)message('');conte
  }catch(e){if(turn===serial){message(e.message,true);content.textContent='内容未能加载，请刷新重试。';}}}
 function route(){
  if(!currentUser)return;
- const allowed=currentUser.role==='admin'?['overview','users','security','models','appearance','audit']:['security','appearance'];
+ const allowed=currentUser.role==='admin'?['overview','users','accounts','security','appearance','audit']:['security','appearance'];
  const requested=location.hash.slice(1);tab=allowed.includes(requested)?requested:allowed[0];
  if(requested!==tab)history.replaceState(null,'','#'+tab);
  render();

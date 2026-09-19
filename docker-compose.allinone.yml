@@ -69,6 +69,15 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
       TRIPO_API_KEY: ${TRIPO_API_KEY:-}
+      # 其余 3D 供应商（后台「模型配置管理」里填的 Key 优先生效；这里的值只作首次初值）
+      MESHY_API_KEY: ${MESHY_API_KEY:-}
+      RODIN_API_KEY: ${RODIN_API_KEY:-}
+      # 混元是两段式密钥：SecretId + SecretKey（后台 Key 栏填 "SecretId:SecretKey" 也行）
+      HUNYUAN_SECRET_ID: ${HUNYUAN_SECRET_ID:-}
+      HUNYUAN_SECRET_KEY: ${HUNYUAN_SECRET_KEY:-}
+      # 混元服务地域（默认广州）
+      HUNYUAN_REGION: ${HUNYUAN_REGION:-}
+      HITEM3D_API_KEY: ${HITEM3D_API_KEY:-}
       IMAGE_API_KEY: ${IMAGE_API_KEY:-}
       IMAGE_BASE_URL: ${IMAGE_BASE_URL:-}
       IMAGE_MODEL: ${IMAGE_MODEL:-}
