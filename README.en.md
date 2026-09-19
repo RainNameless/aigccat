@@ -168,12 +168,23 @@ little server genuinely helps.
 
 ## Quick start
 
-**Option A · single container (recommended, no build required)**
+**Option A · One-line deploy (recommended)**
+
+```bash
+mkdir -p aigccat-deploy && cd aigccat-deploy
+curl -sSL https://raw.githubusercontent.com/RainNameless/aigccat/main/deploy/docker-deploy.sh | bash
+```
+
+The script downloads the compose file, starts the container and prints the
+initial admin credentials (secrets and 4 demo assets are seeded automatically
+on first boot — no .env needed).
+
+**Option B · Plain docker run**
 
 ```bash
 docker run -d --name aigccat -p 8080:8080 -v aigccat-data:/data \
   ghcr.io/rainnameless/aigccat:latest
-```
+``
 
 > **About Blender**: the amd64 image **bundles Blender 5.2** — decimate / remesh / part edit /
 > auto-rig work out of the box. The arm64 image does not include Blender, because Blender only

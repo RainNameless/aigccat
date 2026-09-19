@@ -157,7 +157,17 @@ aigccat 是一条**自托管的 AI 3D 资产管线**：从文字或图片生成�
 
 ## 快速开始
 
-**方式 A · 单容器（推荐，零编译）**
+**方式 A · 一键部署（推荐）**
+
+```bash
+mkdir -p aigccat-deploy && cd aigccat-deploy
+curl -sSL https://raw.githubusercontent.com/RainNameless/aigccat/main/deploy/docker-deploy.sh | bash
+```
+
+脚本会下载 compose 配置、启动容器并打印初始账号密码（首次启动自动生成密钥、
+种入 4 个示例资产，不需要先配 .env）。
+
+**方式 B · 单容器 docker run（零编译）**
 
 ```bash
 docker run -d --name aigccat -p 8080:8080 -v aigccat-data:/data \
