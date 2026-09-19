@@ -390,6 +390,11 @@ log(HAS_LOCAL_BLENDER
 fs.writeFileSync(path.join(DIR.studio, 'studio-runner-token'), STUDIO_TOKEN + '\n', {mode: 0o600});
 log(`登录窗口在容器内自带：Xvfb ${DISPLAY} + 浏览器 + VNC，网页里点「打开登录窗口」即可操作`
   + (STUDIO_PROXY ? `（经代理 ${STUDIO_PROXY}）` : '（直连，未检测到宿主代理）'));
+// 首次启动：全新数据卷（启动前 game-assets 桶不存在）时，把镜像自带的 4 个示例资产
+// 经 web 的导入 API 灌进去 —— 不能磁盘直拷（MinIO 对象带 xl.meta 元数据，裸文件它不认），
+// 结构必须由后端创建。放在全部服务就绪之后执行；老卷 / 已有数据完全不碰。
+const FRESH_VOLUME = !fs.existsSync(path.join(DIR.minio, 'game-assets'));
+
 for (const name of order) {
   const def = byName(name);
   if (!def) continue;
@@ -399,6 +404,42 @@ for (const name of order) {
 
 // opencode 不阻塞启动：它没就绪只影响 AI 绑骨面板，不影响其它功能
 launch(byName('opencode'));
+
+// 首次启动的示例资产导入：等 web 完全就绪后走它的导入 API（web 只在容器回环，
+// 鉴权由 gateway 负责，内部调用无需登录）。任何一步失败都只记日志，不阻塞启动。
+if (FRESH_VOLUME && fs.existsSync('/opt/seed/manifest.json')) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync('/opt/seed/manifest.json', 'utf8'));
+    for (const item of manifest) {
+      const fd = new FormData();
+      fd.set('name', item.name);
+      fd.set('asset_type', item.type);
+      fd.set('description', item.description);
+      fd.set('file', new Blob([fs.readFileSync(path.join('/opt/seed', item.model))]), item.model);
+      const r = await fetch(`${WEB}/api/assets/import`, { method: 'POST', body: fd });
+      if (!r.ok) { log(`示例资产「${item.name}」导入失败：HTTP ${r.status}（跳过，不影响启动）`); continue; }
+      const created = await r.json();
+      // 预览与四视图：push_file（base64），preview 会自动写回 asset.json
+      const putFile = async (key, file) => {
+        const data = fs.readFileSync(path.join('/opt/seed', file));
+        const rr = await fetch(`${WEB}/api/assets/${created.dir}/${created.asset_id}/file/${key}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bytes_b64: data.toString('base64') }),
+        });
+        if (!rr.ok) log(`示例资产「${item.name}」${key} 上传失败：HTTP ${rr.status}`);
+      };
+      if (item.preview) await putFile('versions/v001/preview.png', item.preview);
+      for (const [view, file] of Object.entries(item.views || {})) {
+        await putFile(`source/reference_${view}.png`, file);
+      }
+      log(`示例资产已导入：${item.name}（${created.asset_id}）`);
+    }
+    log('全新数据卷：4 个示例资产就绪，可在资产库直接查看');
+  } catch (e) {
+    log('示例资产导入异常（不影响启动）：' + (e && e.message));
+  }
+}
 
 if (FIRST_BOOT) {
   fs.writeFileSync(path.join(DATA, '.initialized'), new Date().toISOString() + '\n');
