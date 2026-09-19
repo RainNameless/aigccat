@@ -143,28 +143,22 @@ browser installed at all.
 - **Workers**: the amd64 image ships Blender 5.2 built in (arm64 falls back to a host
   install); the login Chromium and the AI-rigging OpenCode also run inside the container
 
-## First, our situation: we're looking for sponsors
+## Community & feedback
 
-To be blunt — **this project currently runs entirely on one personal computer.** No server, and **not a
-single paid credit on any generation platform.**
+**The Telegram group is the project's home base**: https://t.me/aigccat
 
-As a result, only the Tripo subscription path has ever produced real models. Every other platform
-(Meshy, Rodin, Hunyuan3D, TRELLIS 2, Hi3D) **has never had a single real call paid for**, and stays
-listed as "not integrated". We have one hard rule: **if it hasn't run, we don't write "supported"** —
-so credits aren't a nice-to-have for us, they're the difference between shipping a feature and not.
+- Wondering whether this actually works for your project → come ask
+- Something feels off, or a feature you'd cut or add → **say it directly; we prioritize by feedback**
+- Stuck on deployment or platform setup → drop the error message in, we answer when we see it
 
-Any of these helps:
+## On sponsorship
 
-| What we need | Specifically | Used for |
-|---|---|---|
-| **API credits / keys** | official API credits for Meshy, Rodin (Hyper3D), Hunyuan3D, Hi3D | finishing and actually testing those integrations |
-| **TRELLIS 2 run credits** | pay-per-run cloud credits (e.g. Replicate / fal.ai, ≈$0.82 per run) | it has no first-party SaaS, so we'd call it via cloud |
-| **A server** | a small always-on box or VPS (**no GPU needed**) | **hosting an online preview environment** so people can try it without installing anything |
-| **Subscriptions** | plans on the above platforms that include API credits | same as the first item |
-
-Details, boundaries and our commitments: **[Sponsorship & Platform Integration](docs/SPONSORSHIP.md)**.
-Say hi in the **[Telegram community](https://t.me/aigccat)** — even a few dozen generations or an idle
-little server genuinely helps.
+The project currently runs on one personal computer, with no server and no paid
+credits on generation platforms, so some integrations remain untested (our rule:
+if it hasn't run, we don't write "supported"). If you happen to have spare API
+credits, keys or a small server to offer, details are in
+**[Sponsorship & platform access](docs/SPONSORSHIP.md)** — and if not, that's
+perfectly fine too: showing up in the group with feedback is the biggest help.
 
 ## Quick start
 

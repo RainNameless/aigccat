@@ -4,7 +4,7 @@
 
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 
-Telegram 社区：https://t.me/aigccat · [English](README.en.md) · [部署指南](docs/DEPLOYMENT.md) · [文档索引](docs/README.md) · [赞助与接入](docs/SPONSORSHIP.md)
+**[Telegram 社区 · 交流与反馈](https://t.me/aigccat)** · [English](README.en.md) · [部署指南](docs/DEPLOYMENT.md) · [文档索引](docs/README.md)
 
 ---
 
@@ -137,23 +137,20 @@ aigccat 是一条**自托管的 AI 3D 资产管线**：从文字或图片生成�
 - **执行器**：amd64 镜像自带 Blender 5.2（arm64 自动回落宿主机）；
   订阅登录的 Chromium 与 AI 绑骨的 OpenCode 也都在容器内
 
-## 先说我们的窘迫：我们在找赞助
+## 社区与反馈
 
-直说 —— **这个项目目前全部跑在一台个人电脑上**。没有服务器，也**没有任何一家生成平台的付费额度**。
+**Telegram 群是本项目的主场**：https://t.me/aigccat
 
-后果是：只有 Tripo 的订阅链路真正出过模型，其余平台（Meshy / Rodin / Hunyuan3D / TRELLIS 2 / Hi3D）**连一次真实调用都还没付得起**，一直挂在「未接入」。我们有条规矩：**没跑通就不写「支持」** —— 所以这些对我们不是锦上添花，是**能不能把功能做出来**的前提。
+- 想知道这东西实际用起来怎么样、适不适合你的项目 → 来聊
+- 用着不顺手、有想砍掉或想加的功能 → **直接提，我们按反馈排优先级**
+- 部署卡住、平台接入有疑问 → 甩报错进来，看到就回
 
-任意一种都帮得上：
+## 关于赞助
 
-| 需要 | 具体是什么 | 拿来做什么 |
-|---|---|---|
-| **API 额度 / Key** | Meshy、Rodin(Hyper3D)、Hunyuan3D、Hi3D 的官方 API 额度 | 把这四家的接入做完并实测 |
-| **TRELLIS 2 的调用额度** | 按次计费的云端额度（如 Replicate / fal.ai，约 $0.82/次） | 它没有自己的官方 SaaS，我们打算调云端 |
-| **服务器** | 一台能常驻的小机器 / VPS（**不需要显卡**） | **部署在线预览环境**，让社区不用自己装就能试用 |
-| **订阅** | 上述平台含 API 权益的订阅档 | 同第一项 |
-
-细节、边界与我们的承诺见 **[赞助与平台接入](docs/SPONSORSHIP.md)**。
-想聊直接来 **[Telegram 社区](https://t.me/aigccat)** —— 哪怕只是几十次生成额度、或一台闲置的小服务器，都真的有用。
+项目目前全部跑在一台个人电脑上，没有服务器也没有生成平台的付费额度，
+部分平台接入因此尚未实测（我们的规矩：没跑通就不写「支持」）。
+如果你恰好有闲置的 API 额度、Key 或小服务器愿意支持，细节见
+**[赞助与平台接入](docs/SPONSORSHIP.md)** —— 没有也完全没关系，来群里提意见就是最大的帮助。
 
 ## 快速开始
 
