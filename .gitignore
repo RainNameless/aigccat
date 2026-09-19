@@ -78,7 +78,7 @@ outputs/docker-sandbox/
 # （精选的用 `git add -f` 单独加入）
 outputs/**/*.glb
 outputs/*.glb
-md/*.glb
+mod/*.glb
 
 # 本地三路对比产物（含提示词与 Blender 工程文件）
 outputs/schoolgirl-comparison/
