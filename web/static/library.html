@@ -217,6 +217,7 @@
   #tasks-body table { font-size:12px; }
 </style>
 <link rel="stylesheet" href="/shell.css?v=13">
+<link rel="stylesheet" href="/library-backup.css?v=1">
 <script src="/vendor/lucide.min.js" defer></script>
 <script src="/shell.js?v=13"></script>
 </head>
@@ -242,8 +243,9 @@ import { moveToTrash, trashResult } from './asset-trash.js?v=2';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { viewerTools } from './viewer.js?v=opened-cache-21';
+import { viewerTools } from './viewer.js?v=library-backup-1';
 import { mountCanvas } from './canvas.js?v=theme-2';
+import { openLibraryBackup } from './library-backup.js?v=1';
 
 const app = document.getElementById('app');
 const I18N = {
@@ -443,7 +445,7 @@ async function pageLibrary() {
   window.addEventListener('focus', onVisible);
   detailCleanup = () => { clearInterval(imageRefreshTimer); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', onVisible); stopLibraryWatch(); };
   app.innerHTML = `
-  <section class="workspace-head"><div><h2>资产库</h2></div><div class="ops"><button id="open-create">＋ 创建资产</button><button class="ghost" id="open-images">图片资源</button></div>  </section>
+  <section class="workspace-head"><div><h2>资产库</h2></div><div class="ops"><button id="open-create">＋ 创建资产</button><button class="ghost" id="open-images">图片资源</button><button class="ghost" id="library-backup">打包与恢复</button></div>  </section>
   <div class="card" id="runbar" style="display:none">
     <h2>生成任务处理中</h2>
     <div id="runbar-list"></div>
@@ -479,6 +481,7 @@ async function pageLibrary() {
   </section></div>`;
   $('open-create').onclick = () => { location.href = '/#new=1&tool=model'; };
   $('open-images').onclick = () => { location.hash = 'images'; };
+  $('library-backup').onclick = () => openLibraryBackup({api, onRestored:()=>location.reload()});
   // ---------- 分类编排筛选 ----------
   let saved = {}; try { saved = JSON.parse(localStorage.getItem('aigccat_library_v2') || '{}') || {}; } catch {}
   let tax = {}, filter = { dir: saved.dir || '', sub: saved.sub || '' }, gallery = saved.gallery !== false;

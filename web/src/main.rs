@@ -14,6 +14,7 @@ mod blender;
 mod config;
 mod history;
 mod imagegen;
+mod library_backup;
 mod model;
 mod openai;
 mod ops;
@@ -111,8 +112,15 @@ async fn main() {
     store.ensure_bucket().await;
 
     let state = Arc::new(AppState { cfg, store });
+    let library_ready = if let Err(error) = library_backup::recover(&state.store).await {
+        tracing::error!(%error, "library restore recovery pending");
+        false
+    } else { true };
     let recovering = state.clone();
-    tokio::spawn(async move { model_jobs::recover(recovering).await; });
+    tokio::spawn(async move {
+        let _lease = library_backup::LIBRARY_GATE.read().await;
+        if library_ready { model_jobs::recover(recovering).await; }
+    });
 
     let port: u16 = std::env::var("PORT")
         .ok()
@@ -128,6 +136,13 @@ async fn main() {
         .route("/api/studio/session", get(studio_jobs::session_state).post(studio_jobs::session_action))
         .route("/api/assets/{dir}/{id}/versions/{ver}/studio-process", post(studio_jobs::process))
         .route("/api/assets", post(create_asset).get(list_assets))
+        .route("/api/library-backup", get(library_backup::current))
+        .route("/api/library-backup/export", post(library_backup::export))
+        .route("/api/library-backup/import", post(library_backup::upload).layer(axum::extract::DefaultBodyLimit::disable()))
+        .route("/api/library-backup/recover", post(library_backup::retry_recovery))
+        .route("/api/library-backup/{id}", get(library_backup::status).delete(library_backup::discard))
+        .route("/api/library-backup/{id}/download", get(library_backup::download))
+        .route("/api/library-backup/{id}/restore", post(library_backup::restore))
         .route("/api/workbench/state", get(workbench::get_state).put(workbench::put_state))
         .route("/api/media/images", get(workbench::list_images))
         .route("/api/assets/{dir}/{id}/images", post(workbench::generate_images))
@@ -184,6 +199,7 @@ async fn main() {
         .route("/api/settings/accounts/{id}/fetch-models", post(services::fetch_models))
         .route("/api/services/health", get(services::services_health))
         .layer(middleware::from_fn(resource_length))
+        .layer(middleware::from_fn(library_backup::guard))
         .layer(CompressionLayer::new().quality(CompressionLevel::Fastest))
         .with_state(state);
 

@@ -5,6 +5,14 @@ use crate::config::AppConfig;
 use s3::creds::Credentials;
 use s3::{Bucket, Region};
 use serde_json::Value;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ObjectIdentity {
+    pub key: String,
+    pub etag: String,
+    pub size: u64,
+}
 
 #[derive(Clone)]
 pub struct Store {
@@ -136,6 +144,43 @@ impl Store {
                 .await
                 .map_err(|e| format!("delete {k}: {e}"))?;
         }
+        Ok(())
+    }
+
+    /// Backup inventory includes object identities, so a changing library is never silently archived.
+    pub async fn inventory(&self, prefix: &str) -> Result<Vec<ObjectIdentity>, String> {
+        let pages = self.bucket.list(prefix.to_string(), None).await.map_err(|e| e.to_string())?;
+        let mut objects: Vec<_> = pages.into_iter().flat_map(|p| p.contents).map(|o| ObjectIdentity {
+            key: o.key, etag: o.e_tag.unwrap_or_default(), size: o.size,
+        }).collect();
+        objects.sort_by(|a, b| a.key.cmp(&b.key));
+        Ok(objects)
+    }
+
+    pub async fn download_file(&self, key: &str, path: &std::path::Path) -> Result<(), String> {
+        let mut file = tokio::fs::File::create(path).await.map_err(|e| e.to_string())?;
+        let code = self.bucket.get_object_to_writer(key, &mut file).await.map_err(|e| e.to_string())?;
+        if !(200..300).contains(&code) { return Err(format!("下载 {key}: HTTP {code}")); }
+        file.sync_all().await.map_err(|e| e.to_string())
+    }
+
+    pub async fn upload_file(&self, key: &str, path: &std::path::Path) -> Result<(), String> {
+        let mut file = tokio::fs::File::open(path).await.map_err(|e| e.to_string())?;
+        let response = self.bucket.put_object_stream(&mut file, key).await.map_err(|e| e.to_string())?;
+        let code = response.status_code();
+        if !(200..300).contains(&code) { return Err(format!("上传 {key}: HTTP {code}")); }
+        Ok(())
+    }
+
+    pub async fn copy_object(&self, from: &str, to: &str) -> Result<(), String> {
+        let code = self.bucket.copy_object_internal(from, to).await.map_err(|e| e.to_string())?;
+        if !(200..300).contains(&code) { return Err(format!("复制 {from}: HTTP {code}")); }
+        Ok(())
+    }
+
+    pub async fn delete_object(&self, key: &str) -> Result<(), String> {
+        let response = self.bucket.delete_object(key).await.map_err(|e| e.to_string())?;
+        if !(200..300).contains(&response.status_code()) { return Err(format!("删除 {key}: HTTP {}", response.status_code())); }
         Ok(())
     }
 

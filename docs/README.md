@@ -6,6 +6,7 @@
 | [`../README.en.md`](../README.en.md) | Project overview (English) |
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | **部署指南**：单容器部署、多容器开发、可选工作器、自托管、升级、备份、常见问题 |
 | [`UI.md`](UI.md) | **界面规范**：页面路由、主题变量、11 个工具、查看器、改前端的硬性约定 |
+| [`LIBRARY-BACKUP.md`](LIBRARY-BACKUP.md) | 资产库全量打包、跨部署恢复、文件校验、冲突处理与验证 |
 | [`MCP.md`](MCP.md) | **MCP 接入指南**：17 个工具、推送协议、归类规则、对话示例 |
 | [`STUDIO-SESSION.md`](STUDIO-SESSION.md) | **接入你自己的网页订阅会话**：四步接上账号与积分、验证、排查、凭据边界 |
 | [`SPONSORSHIP.md`](SPONSORSHIP.md) | **赞助与平台接入**：我们缺哪些额度 / 服务器，承诺与边界 |
