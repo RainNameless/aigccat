@@ -28,6 +28,16 @@ export async function createGateway({dir,proxyToken,automationToken,upstream,pub
  const vncTarget=new URL(novnc||process.env.NOVNC_UPSTREAM||'http://127.0.0.1:6081');
  const VNC_PREFIX='/studio/vnc';
  const publicFiles=new Set(['/login.html','/login.js','/auth.css','/shell.css','/favicon.ico']);
+ // HOTFIX(public-static): 前端静态资源不参与登录校验。
+ // 它们的内容与开源仓库中的代码一致、不含任何用户数据；放开后 Cloudflare 才能按 URL
+ // 缓存它们（否则匿名请求被 302 到登录页，一旦缓存就是对所有人发登录页）。
+ // 数据类路径（/api/*、示例图、HTML、模型）仍然要求登录。
+ const HOTFIX_STATIC=/\.(?:js|mjs|css|woff2?|ttf|eot|svg|ico|wasm)$/i;
+ // HOTFIX_PUBLIC_DIRS: 应用自带的示例图目录（对所有人同一份字节，可进 CDN）。
+ // 只认目录前缀，**不按 .png 扩展名放开** —— 用户资产的预览图也是 .png，那是数据。
+ const HOTFIX_PUBLIC_DIRS=['/creative-examples/'];
+ const isPublicPath=p=>publicFiles.has(p)||HOTFIX_STATIC.test(p)
+   ||HOTFIX_PUBLIC_DIRS.some(d=>p.startsWith(d));
  const json=(res,status,error)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'private, no-store'});res.end(JSON.stringify({error}));};
  const gateway=http.createServer(async(req,res)=>{
   try{
@@ -47,7 +57,7 @@ export async function createGateway({dir,proxyToken,automationToken,upstream,pub
    const headers={...req.headers};
    for(const name of Object.keys(headers))if(name.startsWith('x-aigccat-')||name.startsWith('x-original-')||name.startsWith('x-forwarded-')||name==='x-real-ip')delete headers[name];
    const authHeaders={'x-aigccat-auth-proxy':proxyToken,'x-aigccat-origin':origin,'x-real-ip':remote?String(req.headers['x-real-ip']||''):req.socket.remoteAddress||'',cookie:req.headers.cookie||''};
-   if(!authRoute&&!publicFiles.has(pathname)&&!machine){
+   if(!authRoute&&!isPublicPath(pathname)&&!machine){
     const check=await fetch(authBase+'/internal/check',{headers:{...authHeaders,'x-original-uri':req.url,'x-original-method':req.method,'x-original-origin':req.headers.origin||''},signal:AbortSignal.timeout(10000)});
     await check.arrayBuffer();
     if(!check.ok){
@@ -115,7 +125,9 @@ export async function createGateway({dir,proxyToken,automationToken,upstream,pub
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  const secrets=process.env.AUTH_SECRETS_DIR||'/secrets',dir=process.env.AUTH_DATA_DIR||'/data';
- // 公开 Origin（HTTPS 反代部署时设置）与首次启动的初始账号：两者都不设时行为与之前完全一致。
+ // 公开 Origin（HTTPS 反代部署时设置）与首次启动的初始账号。
+ // 初始账号由 supervisor 传入（默认 admin / aigccat，可用 AIGCCAT_ADMIN_USER /
+ // AIGCCAT_ADMIN_PASSWORD 覆盖）；两者都不设时行为与之前完全一致（账号库为空才建号）。
  const publicOrigin=process.env.AUTH_ORIGIN||undefined;
  const u=process.env.AUTH_BOOTSTRAP_USER,p=process.env.AUTH_BOOTSTRAP_PASSWORD;
  const bootstrap=u&&p?{username:u,password:p}:undefined;

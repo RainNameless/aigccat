@@ -3,7 +3,7 @@
 # 一个容器 = 存储(MinIO) + 后端(web) + 鉴权(gateway) + AI 绑骨(opencode)
 #            + Blender 5.2（减面 / 重拓扑 / 部件编辑 / 自动绑骨）
 #            + 登录用的浏览器（Xvfb + Chromium + noVNC，网页里内嵌显示）。
-# 首次启动自动生成密钥与初始账号，不用先配 .env。
+# 首次启动自动生成密钥；初始账号固定 admin / aigccat，不用先配 .env。
 # **宿主机上不需要装任何东西。**
 #
 # ⚠ 镜像有 amd64 / arm64 两个版本，Docker 会自动选。
@@ -18,7 +18,7 @@
 #   2) 从源码本地构建：
 #        docker compose -f docker-compose.allinone.yml up -d --build
 #
-# 打开 http://localhost:8080 ；初始账号密码在首次启动的日志里（docker compose logs）。
+# 打开 http://localhost:8080 ，用默认账号 admin / 密码 aigccat 登录（首次启动日志里也会打印一遍）。
 #
 # 想锁定架构（默认由 Docker 按本机 CPU 自动选）：
 #   · x86 服务器 / Windows：  DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f docker-compose.allinone.yml up -d
@@ -32,12 +32,12 @@
 #   IMAGE_API_KEY / IMAGE_BASE_URL / IMAGE_MODEL     图片模型（可选）
 #   AUTH_ORIGIN                                      用 HTTPS 反代暴露时的公开地址，
 #                                                    如 https://aigccat.example.com
-#   AIGCCAT_ADMIN_PASSWORD / MINIO_ROOT_PASSWORD     固定初始密码（不设则自动生成）
+#   AIGCCAT_ADMIN_USER / AIGCCAT_ADMIN_PASSWORD      覆盖初始账号密码（默认 admin / aigccat）
+#   MINIO_ROOT_PASSWORD                              MinIO 密码（不设则自动生成）
 #
 # 想换数据目录：把下面 volumes 的 aigccat-data 换成宿主路径，例如 ./aigccat-data:/data
 
-# 显式项目名：与 docker-compose.yml（多容器版）用同一个目录名解析成不同项目，
-# 避免有人在老部署上误跑 `docker compose up` 把正在跑的容器顶掉。
+# 显式项目名，避免与同机其他 compose 项目互相顶掉。
 name: aigccat-allinone
 
 services:

@@ -7,9 +7,9 @@
 #
 # 做三件事：
 #   1. 下载 docker-compose.allinone.yml（保存为 docker-compose.yml）
-#   2. docker compose up -d 启动（首次启动容器内自动生成密钥与初始账号，
-#      并自动种入 4 个示例资产 —— 不需要预先配置 .env）
-#   3. 等就绪后打印初始账号密码（只在首次启动时生成一次）
+#   2. docker compose up -d 启动（首次启动容器内自动生成密钥；
+#      初始账号固定 admin / aigccat，并自动种入 4 个示例资产 —— 不需要预先配置 .env）
+#   3. 等就绪后打印初始账号密码
 set -euo pipefail
 
 REPO_RAW="https://raw.githubusercontent.com/RainNameless/aigccat/main"
@@ -48,7 +48,7 @@ echo "  ────────────────────────
 echo "   aigccat 部署完成"
 echo "   访问地址：http://localhost:8080"
 docker compose logs aigccat 2>/dev/null | grep -A 2 "初始账号" | sed 's/^/   /' || true
-echo "   （初始密码只显示一次；忘了就删数据卷重新部署，或看容器日志最早的部分）"
+echo "   （默认账号 admin / 密码 aigccat；公网部署请尽快改掉，别一直用默认值）"
 echo "  ────────────────────────────────────────────────"
 echo
 echo "常用命令："

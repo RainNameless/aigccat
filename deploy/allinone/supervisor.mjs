@@ -7,7 +7,7 @@
 //   3. gateway  —— 鉴权网关，容器里唯一对外发布的端口（8080）
 //   4. opencode —— AI 绑骨执行器（需宿主 Blender 桥接，没有就是"不可达"，不影响其它功能）
 //
-// 首次启动自动生成密钥与初始管理员账号，所以 `docker run` 之后不用改任何配置。
+// 首次启动自动生成密钥；初始管理员账号固定为 admin / aigccat，所以 `docker run` 之后不用改任何配置。
 // 本文件同时负责：目录与软链自举、启动顺序与就绪等待、崩溃重启、日志前缀、优雅退出。
 
 import {spawn} from 'node:child_process';
@@ -68,7 +68,7 @@ function secret(name, len = 24) {
   return saved[name];
 }
 
-// 如果卷里已经有令牌文件（典型场景：从多容器版迁移过来，或复用旧数据卷），
+// 如果卷里已经有令牌文件（典型场景：复用已有的数据卷），
 // 必须沿用它们，否则下面会生成新值并覆盖，导致外部脚本 / 网关 / CI 里
 // 正在使用的旧令牌全部失效。
 for (const [name, file] of [['AIGCCAT_PROXY_TOKEN', 'proxy.token'], ['AIGCCAT_AUTOMATION_TOKEN', 'automation.token']]) {
@@ -82,12 +82,20 @@ for (const [name, file] of [['AIGCCAT_PROXY_TOKEN', 'proxy.token'], ['AIGCCAT_AU
 const MINIO_USER = process.env.MINIO_ROOT_USER || 'aigccat';
 const MINIO_PASS = secret('MINIO_ROOT_PASSWORD');
 const RIG_TOKEN  = secret('RIG_AGENT_TOKEN');
-const ADMIN_USER = process.env.AIGCCAT_ADMIN_USER || 'admin';
-const ADMIN_PASS = secret('AIGCCAT_ADMIN_PASSWORD', 9);
+
+// 初始管理员账号密码 —— 固定默认值，开箱即用，不必去容器日志里翻随机密码。
+// 两者都可用环境变量覆盖：AIGCCAT_ADMIN_USER / AIGCCAT_ADMIN_PASSWORD。
+// ⚠️ 默认值只解决「忘了配」，不解决「被人猜」：公网部署请务必覆盖成强密码。
+// ⚠️ 只在账号库为空（首次启动）时生效；账号库一旦建立（/data/auth/data/accounts.json），
+//    改这里的默认值或环境变量都不会重置已有密码。
+const DEFAULT_ADMIN_USER = 'admin';
+const DEFAULT_ADMIN_PASSWORD = 'aigccat';
+const ADMIN_USER = process.env.AIGCCAT_ADMIN_USER || DEFAULT_ADMIN_USER;
+const ADMIN_PASS = process.env.AIGCCAT_ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
 // 会话执行器与后端之间的共享令牌。两边必须一致，所以由这里生成一处、同时发给两个进程。
 const STUDIO_TOKEN = secret('STUDIO_WORKER_TOKEN');
 
-// gateway 从文件读令牌，保持与原多容器部署一致
+// gateway 从文件读令牌，保持与其他部署形态一致
 for (const [file, value] of [['proxy.token', secret('AIGCCAT_PROXY_TOKEN')], ['automation.token', secret('AIGCCAT_AUTOMATION_TOKEN')]]) {
   const p = path.join(DIR.authSec, file);
   if (!fs.existsSync(p) || fs.readFileSync(p, 'utf8').trim() !== value) fs.writeFileSync(p, value + '\n', {mode: 0o600});
@@ -370,7 +378,8 @@ log(`aigccat 单容器启动，数据目录 ${DATA}`);
 
 // ⚠ 必须在启动 gateway 之前判定账号库是否为空。
 // gateway 启动时会 bootstrap 建号并创建 accounts.json，若把判定放在它启动之后，
-// 结果恒为「已有账号库」—— 首次部署的人就永远看不到初始密码（只能去 /data/aigccat.env 翻）。
+// 结果恒为「已有账号库」—— 首次部署的人就看不到那行初始账号提示，
+// 进而以为「是不是没有默认密码」。（密码本身是固定默认值，不再依赖这行提示。）
 const freshAccounts = FIRST_BOOT && !fs.existsSync(path.join(DIR.authData, 'accounts.json'));
 
 // 必须按依赖顺序串起来起：minio → web → gateway。
@@ -445,7 +454,7 @@ if (FIRST_BOOT) {
   fs.writeFileSync(path.join(DATA, '.initialized'), new Date().toISOString() + '\n');
   // freshAccounts 已在启动 gateway 之前算好（见上方主流程开头）：
   // 只有账号库确实是空的（gateway 会走 bootstrap 建号）才打印初始账号密码。
-  // 否则（典型场景：数据卷是从多容器版迁移过来的）会打印一个根本没生效的随机密码，
+  // 否则（典型场景：复用已有数据卷）会打印一对根本没生效的账号密码，
   // 让人以为登录密码被改了。
   console.log('');
   console.log('  ────────────────────────────────────────────────');
@@ -454,7 +463,7 @@ if (FIRST_BOOT) {
   if (freshAccounts) {
     console.log(`   初始账号：${ADMIN_USER}`);
     console.log(`   初始密码：${ADMIN_PASS}`);
-    console.log('   （上面这行只在首次启动打印一次，也会存到 /data/aigccat.env）');
+    console.log('   （仅首次启动打印；可用 AIGCCAT_ADMIN_USER / AIGCCAT_ADMIN_PASSWORD 覆盖）');
   } else {
     console.log('   检测到数据卷里已有账号库，沿用其中的账号与密码，未创建新账号。');
   }
