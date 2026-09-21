@@ -20,6 +20,22 @@ const GLOBALS: [&str; 4] = ["_studio/workbench.json", "canvas/layout.json", "sty
 const JOURNAL: &str = "_backups/restore.json";
 // Only JSON metadata is buffered. Binary objects and the ZIP are streamed through disk.
 const JSON_LIMIT: u64 = 16 * 1024 * 1024;
+/// 备份上传的默认大小上限（2 GiB）。整库打包需要容纳全部对象，故留足余量。
+const DEFAULT_MAX_UPLOAD: u64 = 2 * 1024 * 1024 * 1024;
+/// 备份上传的大小上限，可用 `AIGCCAT_MAX_BACKUP_UPLOAD_BYTES` 覆盖（非法值或 0 回落默认值）。
+/// 路由层用它设置请求体上限，`upload` 循环里再按 chunk 累计校验一次，避免缺少声明时无限制落盘。
+/// 解析上传上限：缺省、非数字、或 0 都回落到默认值。
+fn parse_upload_limit(raw: Option<&str>) -> u64 {
+    raw.and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(DEFAULT_MAX_UPLOAD)
+}
+pub fn max_upload_bytes() -> u64 {
+    static LIMIT: LazyLock<u64> = LazyLock::new(|| {
+        parse_upload_limit(std::env::var("AIGCCAT_MAX_BACKUP_UPLOAD_BYTES").ok().as_deref())
+    });
+    *LIMIT
+}
 pub static LIBRARY_GATE: LazyLock<Arc<RwLock<()>>> = LazyLock::new(|| Arc::new(RwLock::new(())));
 static RECOVERY_PENDING: AtomicBool = AtomicBool::new(false);
 static SESSION: AsyncMutex<Option<Arc<Transfer>>> = AsyncMutex::const_new(None);
@@ -27,6 +43,10 @@ static SESSION: AsyncMutex<Option<Arc<Transfer>>> = AsyncMutex::const_new(None);
 fn bad(s: impl ToString) -> ApiError { (StatusCode::BAD_REQUEST, s.to_string()) }
 fn internal(s: impl ToString) -> ApiError { (StatusCode::INTERNAL_SERVER_ERROR, s.to_string()) }
 fn conflict(s: impl ToString) -> ApiError { (StatusCode::CONFLICT, s.to_string()) }
+fn too_large(limit: u64) -> ApiError {
+    (StatusCode::PAYLOAD_TOO_LARGE,
+     format!("备份文件超过上限 {:.1} GiB，可调整 AIGCCAT_MAX_BACKUP_UPLOAD_BYTES 后重试", limit as f64 / 1073741824.0))
+}
 
 /// Hold a read lease across requests (including GET handlers that sweep stale jobs).
 /// Long-running generation is checked separately before taking a library snapshot.
@@ -321,8 +341,15 @@ pub async fn upload(State(st): State<Shared>, mut multipart: Multipart) -> Resul
     let result = async {
         let mut field = multipart.next_field().await.map_err(bad)?.ok_or_else(|| bad("请选择 ZIP 备份"))?;
         if field.name() != Some("file") { return Err(bad("需要 file 字段")); }
+        // 边读边累计，超限立即中止（不把整包读进内存）；UploadGuard 会清理半成品并标记失败。
+        let limit = max_upload_bytes();
+        let mut written: u64 = 0;
         let mut file = tokio::fs::File::create(s.dir.join("library.zip")).await.map_err(internal)?;
-        while let Some(chunk) = field.chunk().await.map_err(bad)? { file.write_all(&chunk).await.map_err(internal)?; }
+        while let Some(chunk) = field.chunk().await.map_err(bad)? {
+            written += chunk.len() as u64;
+            if written > limit { return Err(too_large(limit)); }
+            file.write_all(&chunk).await.map_err(internal)?;
+        }
         file.sync_all().await.map_err(internal)?;
         // multer permits only one live field; release it before checking for extra fields.
         drop(field);

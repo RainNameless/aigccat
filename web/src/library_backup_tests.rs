@@ -1,6 +1,28 @@
 use super::*;
 use base64::Engine;
 
+#[test]
+fn upload_limit_falls_back_when_missing_or_invalid() {
+    // 未设置、空串、非数字、0、负数 —— 一律回落到默认上限（不能让限制形同虚设）
+    assert_eq!(parse_upload_limit(None), DEFAULT_MAX_UPLOAD);
+    assert_eq!(parse_upload_limit(Some("")), DEFAULT_MAX_UPLOAD);
+    assert_eq!(parse_upload_limit(Some("   ")), DEFAULT_MAX_UPLOAD);
+    assert_eq!(parse_upload_limit(Some("abc")), DEFAULT_MAX_UPLOAD);
+    assert_eq!(parse_upload_limit(Some("0")), DEFAULT_MAX_UPLOAD);
+    assert_eq!(parse_upload_limit(Some("-1")), DEFAULT_MAX_UPLOAD);
+}
+
+#[test]
+fn upload_limit_accepts_explicit_bytes() {
+    assert_eq!(parse_upload_limit(Some("1048576")), 1_048_576);
+    assert_eq!(parse_upload_limit(Some("  1073741824  ")), 1_073_741_824);
+}
+
+#[test]
+fn default_upload_limit_is_two_gib() {
+    assert_eq!(DEFAULT_MAX_UPLOAD, 2 * 1024 * 1024 * 1024);
+}
+
 fn triangle_glb(red: bool) -> Vec<u8> {
     let mut metadata=serde_json::to_vec(&json!({"asset":{"version":"2.0"},"scene":0,
         "scenes":[{"nodes":[0]}],"nodes":[{"mesh":0}],

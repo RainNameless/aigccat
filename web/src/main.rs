@@ -138,7 +138,10 @@ async fn main() {
         .route("/api/assets", post(create_asset).get(list_assets))
         .route("/api/library-backup", get(library_backup::current))
         .route("/api/library-backup/export", post(library_backup::export))
-        .route("/api/library-backup/import", post(library_backup::upload).layer(axum::extract::DefaultBodyLimit::disable()))
+        // 备份上传上限：默认 2 GiB，可用 AIGCCAT_MAX_BACKUP_UPLOAD_BYTES 调整；
+        // handler 内还会按 chunk 累计校验一次（双重限制，且报错信息更明确）。
+        .route("/api/library-backup/import", post(library_backup::upload)
+            .layer(axum::extract::DefaultBodyLimit::max(library_backup::max_upload_bytes() as usize)))
         .route("/api/library-backup/recover", post(library_backup::retry_recovery))
         .route("/api/library-backup/{id}", get(library_backup::status).delete(library_backup::discard))
         .route("/api/library-backup/{id}/download", get(library_backup::download))
