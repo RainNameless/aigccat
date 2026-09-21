@@ -1,17 +1,22 @@
 // aigccat CI/CD 流水线
 //
 // 同一个脚本服务两条流水线（aigccat-prod / aigccat-dev）：
-// 作业里用参数告诉它「部署到哪套环境、用哪个 compose 文件、健康检查打哪里」，
-// 所以本文件**不带任何环境专属信息**（域名、路径、口令都在 Jenkins 作业参数里），
-// 可以直接放在公开仓库里。
+// 作业里用参数告诉它「部署到哪套环境、用哪个 compose 文件」，
+// 所以本文件**不带任何环境专属信息**（域名、路径、口令都在 Jenkins 作业参数里）。
 //
-// 阶段：检出 → 后端单元测试 → 网关测试 → 构建镜像 → 打标签 → 部署 → 健康检查
+// 阶段：检出 → 后端单元测试 → 网关测试 → 构建镜像 → 部署 → 健康检查
 //
-// 为什么测试跑在 docker run 里：Jenkins 镜像不带 Rust / Node 工具链，
-// 而宿主机已有 rust:1-slim-bookworm、node:22-bookworm-slim 两个镜像与 cargo 缓存，
-// 直接借来用即可，不必把这些工具链塞进 Jenkins 镜像、也不必每次都重下依赖。
-// 测试容器的 target/ 挂在宿主机 /ci-cache 上并按环境分开 —— 否则每次全新 clone
-// 都等于全量重编依赖（十几分钟）。
+// ⚠️ 本文件**故意不写 parameters{} 块**：流水线自带的 parameters 定义会**覆盖**
+//    作业配置里的参数定义 —— 一旦在这里写了，aigccat-dev 作业就会拿到这里的默认值
+//    （prod）而不是作业自己的值，表现为「dev 作业跑去部署生产」。
+//    参数定义只保留在 Jenkins 作业侧（casc.yaml），这里只读 params.* 并给兜底值。
+//
+// ⚠️ 测试阶段用 `--volumes-from $(hostname)` 而不是 `-v $WORKSPACE/...`：
+//    docker 守护进程在**宿主机**上执行，而 $WORKSPACE（/var/jenkins_home/...）只存在于
+//    Jenkins **容器内**（它是个命名卷）。用 -v 挂一个宿主机上不存在的路径，Docker 会
+//    默默建一个空目录挂进去 —— 报错是「could not find Cargo.toml in /app」，
+//    完全看不出真正原因。--volumes-from 把 Jenkins 自己的卷挂载原样共享给测试容器，
+//    于是路径两边一致。
 
 pipeline {
   agent any
@@ -19,24 +24,18 @@ pipeline {
   options {
     timestamps()
     buildDiscarder(logRotator(numToKeepStr: '20'))
-    disableConcurrentBuilds()      // 同一环境不允许并发部署，避免两个 compose up 打架
+    disableConcurrentBuilds()
     timeout(time: 90, unit: 'MINUTES')
   }
 
-  parameters {
-    string(name: 'ENVIRONMENT', defaultValue: 'prod',
-           description: '环境标识：决定镜像标签与 cargo 缓存目录')
-    string(name: 'COMPOSE_FILE', defaultValue: '',
-           description: '部署用的 compose 文件绝对路径；留空 = 用本仓库根目录的 docker-compose.allinone.yml')
-    string(name: 'ENV_FILE', defaultValue: '',
-           description: '额外的 --env-file（例如给 AUTH_ORIGIN）；留空则不加')
-    booleanParam(name: 'SKIP_TESTS', defaultValue: false,
-           description: '跳过测试（仅救急用；正常不要勾）')
-  }
-
   environment {
-    IMAGE_REPO  = 'ghcr.io/rainnameless/aigccat'
-    CARGO_CACHE = "/ci-cache/cargo-target-${params.ENVIRONMENT}"
+    IMAGE_REPO = 'ghcr.io/rainnameless/aigccat'
+    // 下面几个都从作业参数来，并给兜底值（万一在没有参数的场合直接跑这个脚本）
+    ENVNAME    = "${params.ENVIRONMENT ?: 'prod'}"
+    CMPFILE    = "${params.COMPOSE_FILE ?: ''}"
+    ENVFILE    = "${params.ENV_FILE ?: ''}"
+    // 依赖编译产物按环境分开缓存；放在宿主 /opt/ci-cache 上，首次全量编译后后续都很快
+    CARGO_TARGET_DIR = "/ci-cache/cargo-target-${params.ENVIRONMENT ?: 'prod'}"
   }
 
   stages {
@@ -45,23 +44,22 @@ pipeline {
         checkout scm
         script {
           env.SHORT_SHA = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-          echo "分支 ${env.GIT_BRANCH} · 提交 ${env.SHORT_SHA} · 环境 ${params.ENVIRONMENT}"
+          echo "分支 ${env.GIT_BRANCH} · 提交 ${env.SHORT_SHA} · 环境 ${env.ENVNAME}"
         }
       }
     }
 
     stage('后端单元测试') {
-      when { expression { !params.SKIP_TESTS } }
+      when { expression { params.SKIP_TESTS != true } }
       steps {
         sh '''
           set -e
-          mkdir -p "$CARGO_CACHE"
           docker run --rm \
-            -v "$WORKSPACE/web:/app" \
-            -v "$CARGO_CACHE:/app/target" \
-            -v /root/.cargo/registry:/usr/local/cargo/registry \
-            -v /ci-cache/cargo-config.toml:/usr/local/cargo/config.toml:ro \
-            -w /app \
+            --volumes-from "$(hostname)" \
+            -v /opt/ci-cache/cargo-config.toml:/usr/local/cargo/config.toml:ro \
+            -v /root/.cargo/registry:/usr/local/cargo/registry:ro \
+            -e CARGO_TARGET_DIR="$CARGO_TARGET_DIR" \
+            -w "$WORKSPACE/web" \
             rust:1-slim-bookworm \
             cargo test --bin aigccat-web
         '''
@@ -69,11 +67,13 @@ pipeline {
     }
 
     stage('网关测试') {
-      when { expression { !params.SKIP_TESTS } }
+      when { expression { params.SKIP_TESTS != true } }
       steps {
         sh '''
           set -e
-          docker run --rm -v "$WORKSPACE:/ws" -w /ws \
+          docker run --rm \
+            --volumes-from "$(hostname)" \
+            -w "$WORKSPACE" \
             node:22-bookworm-slim \
             node --test scripts/auth-server/gateway.test.mjs
         '''
@@ -89,8 +89,8 @@ pipeline {
             --build-arg TARGETARCH=amd64 \
             --build-arg APT_MIRROR="${APT_MIRROR:-mirrors.ustc.edu.cn}" \
             -f deploy/allinone/Dockerfile \
-            -t "$IMAGE_REPO:${params.ENVIRONMENT}" \
-            -t "$IMAGE_REPO:${params.ENVIRONMENT}-${SHORT_SHA}" \
+            -t "$IMAGE_REPO:${ENVNAME}" \
+            -t "$IMAGE_REPO:${ENVNAME}-${SHORT_SHA}" \
             --load .
         '''
       }
@@ -100,10 +100,10 @@ pipeline {
       steps {
         sh '''
           set -e
-          CMP="${COMPOSE_FILE:-$WORKSPACE/docker-compose.allinone.yml}"
-          if [ -n "$ENV_FILE" ]; then ENVARG="--env-file $ENV_FILE"; else ENVARG=""; fi
+          CMP="${CMPFILE:-$WORKSPACE/docker-compose.allinone.yml}"
+          if [ -n "$ENVFILE" ]; then ENVARG="--env-file $ENVFILE"; else ENVARG=""; fi
           echo "compose : $CMP"
-          echo "env-file: ${ENV_FILE:-(无)}"
+          echo "env-file: ${ENVFILE:-(无)}"
           # 项目名来自 compose 文件里的 name:，所以重建不会换数据卷
           docker compose $ENVARG -f "$CMP" up -d --force-recreate
           docker compose $ENVARG -f "$CMP" ps
@@ -115,13 +115,12 @@ pipeline {
       steps {
         sh '''
           set -e
-          CMP="${COMPOSE_FILE:-$WORKSPACE/docker-compose.allinone.yml}"
-          if [ -n "$ENV_FILE" ]; then ENVARG="--env-file $ENV_FILE"; else ENVARG=""; fi
-          # 关键：Jenkins 在它自己的网络命名空间里，127.0.0.1 是它自己 ——
-          # 而 dev 实例只把端口绑在宿主机回环上，跨容器根本摸不到。
-          # 所以直接进容器内部自检：那里的网关端口恒为 8080。
+          CMP="${CMPFILE:-$WORKSPACE/docker-compose.allinone.yml}"
+          if [ -n "$ENVFILE" ]; then ENVARG="--env-file $ENVFILE"; else ENVARG=""; fi
+          # 进容器内部自检：Jenkins 在它自己的网络命名空间里，127.0.0.1 是它自己；
+          # 而 dev 实例只把端口绑在宿主机回环上，跨容器根本摸不到。容器内网关端口恒为 8080。
           CID=$(docker compose $ENVARG -f "$CMP" ps -q | head -1)
-          if [ -z "$CID" ]; then echo "没有找到该 compose 项目的容器"; exit 1; fi
+          if [ -z "$CID" ]; then echo "没找到该 compose 项目的容器"; exit 1; fi
           echo "目标容器: $CID"
           for i in $(seq 1 30); do
             code=$(docker exec "$CID" curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
@@ -142,7 +141,7 @@ pipeline {
 
   post {
     success {
-      echo "✔ ${params.ENVIRONMENT} 部署完成：${env.IMAGE_REPO}:${params.ENVIRONMENT}（${env.SHORT_SHA}）"
+      echo "✔ ${env.ENVNAME} 部署完成：${env.IMAGE_REPO}:${env.ENVNAME}（${env.SHORT_SHA}）"
     }
     unsuccessful {
       sh 'docker ps -a --format "{{.Names}}\t{{.Status}}" | grep -i aigccat || true'
