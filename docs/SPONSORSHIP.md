@@ -3,7 +3,7 @@
 **这个项目目前全部跑在一台个人电脑上：没有服务器，也没有任何一家生成平台的付费额度。**
 如果你手里有用不完的 API 额度、闲置订阅，或者一台闲着的小服务器，欢迎赞助 —— 我们把接入做完、把预览站搭起来，并把验证过程公开。
 
-Telegram：<https://t.me/aigccat>
+Telegram：[加入社区](https://t.me/aigccat)
 
 ---
 
@@ -77,7 +77,7 @@ aigccat 是一条**自托管的 AI 3D 资产管线**：文字 / 图片 → 3D �
 
 ## 5. 怎么参与
 
-- **在 Telegram 频道说一声**：<https://t.me/aigccat>
+- **在 Telegram 频道说一声**：[加入社区](https://t.me/aigccat)
   例如「我有 Meshy 的 XX 额度，可以给你们测试」或「我有一台闲置小机器可以借你们跑预览」——
   我们会**先说清楚打算怎么用、用多少**，你同意了再动。
 - 你也可以只赞助其中**一个平台**，甚至只赞助**十几次生成**、或一台最低配的 VPS，都很有用。
@@ -101,7 +101,7 @@ any generation platform.** If you have spare API credits, an idle subscription, 
 server, we'd be grateful — we'll finish the integrations, stand up a preview site, and publish the
 verification process.
 
-Telegram: <https://t.me/aigccat>
+Telegram: [join us](https://t.me/aigccat)
 
 ## Background
 
@@ -175,7 +175,7 @@ Cloud credits or a VPS voucher work just as well as physical hardware.
 
 ## How to help
 
-Say hi in the Telegram channel: <https://t.me/aigccat> — e.g. "I can sponsor a Meshy API key" or
+Say hi in the [Telegram channel](https://t.me/aigccat) — e.g. "I can sponsor a Meshy API key" or
 "I have an idle small server you can use for a preview". We'll tell you exactly what we plan to run
 and roughly how much, before touching anything. Sponsoring a single platform, a dozen generations, or
 one minimum-spec VPS is genuinely useful.

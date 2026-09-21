@@ -4,7 +4,7 @@ A general-purpose 3D game asset platform — describe what you want in natural l
 
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 
-Telegram community: https://t.me/aigccat · [中文](README.md) · [Deployment Guide](docs/DEPLOYMENT.md) · [Docs Index](docs/README.md) · [Sponsorship](docs/SPONSORSHIP.md)
+[Telegram community](https://t.me/aigccat) · [中文](README.md) · [Deployment Guide](docs/DEPLOYMENT.md) · [Docs Index](docs/README.md) · [Sponsorship](docs/SPONSORSHIP.md)
 
 ---
 
@@ -145,7 +145,7 @@ browser installed at all.
 
 ## Community & feedback
 
-**The Telegram group is the project's home base**: https://t.me/aigccat
+**The Telegram group is the project's home base** — [join us](https://t.me/aigccat)
 
 - Wondering whether this actually works for your project → come ask
 - Something feels off, or a feature you'd cut or add → **say it directly; we prioritize by feedback**
