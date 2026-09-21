@@ -1,7 +1,6 @@
 # 只把「构建单容器镜像」真正需要的目录送进构建上下文。
 # outputs/ 有数百 MB 本地产物，全送进去会让 docker build 卡在传输阶段。
-# 注意：本文件只影响以仓库根目录为 context 的构建（即 deploy/allinone/Dockerfile），
-# web 镜像的 context 是 ./web，不受影响。
+# 注意：本文件只影响以仓库根目录为 context 的构建（即 deploy/allinone/Dockerfile）。
 
 *
 !web
