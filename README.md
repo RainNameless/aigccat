@@ -14,6 +14,18 @@ aigccat 是一条**自托管的 AI 3D 资产管线**：从文字或图片生成�
 
 它不是"能生成模型"的 demo，而是为了解决真实游戏项目里的一堆脏问题：脸型雷同、微调要全量重生成、导出到引擎后变品红、清理脚本误删已发布资产、API 成本无感、审核只看一张图看不准。
 
+## 快速开始
+
+**方式 A · 一键部署（推荐）**
+
+```bash
+mkdir -p aigccat-deploy && cd aigccat-deploy
+curl -sSL https://raw.githubusercontent.com/RainNameless/aigccat/main/deploy/docker-deploy.sh | bash
+```
+
+脚本会下载 compose 配置、启动容器并打印初始账号密码（默认 **admin / aigccat**；首次启动自动
+生成其余密钥、种入 4 个示例资产，不需要先配 .env）。
+
 ## 界面
 
 ### 工作台
