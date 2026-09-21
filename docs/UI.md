@@ -1,4 +1,4 @@
-# aigccat · 界面规范（当前有效）
+# aigccat 界面规范
 
 > 本文件描述**当前**界面结构与约定。界面变更的逐次记录不写在这里。
 
@@ -35,7 +35,7 @@
 
 ## 4. 工具清单（11 个）
 
-定义在 `workbench.js` 的 `TOOLS` 常量。**没有「孔洞修复」，也没有叫「表面处理」的工具**（后者是 `texture`「贴图处理」的旧称）。
+定义在 `workbench.js` 的 `TOOLS` 常量，完整清单见下表。
 
 | # | id | 名称 | 说明 |
 |---|---|---|---|
@@ -63,9 +63,9 @@
 
 覆盖目标面数、几何精度、四边面拓扑、生成纹理、PBR、贴图质量与导出尺寸，分别说明含义、用途和限制。四边面请求不保证 GLB 保留四边面，导出尺寸也不等于生成细节质量。
 
-此阶段不提供报价：网页订阅积分与 API 额度分别标注「当前配置费用待确认」。准确计费与估算联动由后续迭代实现。
+此阶段不提供报价：网页订阅积分与 API 额度分别标注「当前配置费用待确认」。
 
-文案依据（核对日期：2026-09-17）：
+文案依据：
 
 - [Tripo v3.1 官方说明](https://developers.tripo3d.ai/en/models/v3-1) 与 [生成接口文档](https://platform.tripo3d.ai/docs/generation)：面数、几何、纹理与拓扑参数的一般语义。Studio 档位不套用 API 枚举或价格。
 - [glTF 2.0 网格规范](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#meshes) 与 [材质规范](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials)：网格原语及 metallic-roughness 材质。
@@ -105,8 +105,7 @@
 | `creation-settings.js` / `creative-examples.js` | 图片创作比例与多组开关 / 六张图文案例 |
 | `generation-indicator.js` | 生成进度环（300 秒为**预估**，不是真实进度） |
 
-> 注意：资产详情页在 `workbench.js`，**不在** `library.html`。`library.html` 里只保留资产库与
-> 图片资源，不要再去找旧详情页。
+> 资产详情页定义在 `workbench.js`；`library.html` 只包含资产库与图片资源。
 
 ## 8. 改前端时的硬性约定
 

@@ -16,7 +16,7 @@ It is not a "look, it makes a model" demo. It exists to solve the unglamorous pr
 
 ## Screenshots
 
-### Multi-account pool & custom model services (v0.4)
+### Multi-account pool & custom model services
 
 **One page manages every model credential** — a sub2api-style account pool: each
 provider can hold multiple accounts (subscription / API key / custom model service),
@@ -93,7 +93,7 @@ Image inventory: each asset's four views kept as a separate group, originals dow
 
 - Model inputs: text / single image / multi-view / batch
 - 10 post-processing operations: decimate, remesh, quad, split, UV, material, upscale, rig, animation, transform
-- Rigging and animation: apply Studio motion templates, or local AI rigging (an AI writes Blender scripts, executed through an OpenCode container)
+- Rigging and animation: apply Studio motion templates, or local AI rigging (an AI writes Blender scripts, executed through the in-container OpenCode bridge)
 
 **Quality and traceability**
 
@@ -170,15 +170,15 @@ curl -sSL https://raw.githubusercontent.com/RainNameless/aigccat/main/deploy/doc
 ```
 
 The script downloads the compose file, starts the container and prints the
-initial admin credentials (secrets and 4 demo assets are seeded automatically
-on first boot — no .env needed).
+initial admin credentials — default **admin / aigccat** (other secrets and 4 demo
+assets are seeded automatically on first boot — no .env needed).
 
 **Option B · Plain docker run**
 
 ```bash
 docker run -d --name aigccat -p 8080:8080 -v aigccat-data:/data \
   ghcr.io/rainnameless/aigccat:latest
-``
+```
 
 > **About Blender**: the amd64 image **bundles Blender 5.2** — decimate / remesh / part edit /
 > auto-rig work out of the box. The arm64 image does not include Blender, because Blender only
@@ -187,43 +187,42 @@ docker run -d --name aigccat -p 8080:8080 -v aigccat-data:/data \
 > Silicon, install Blender once and those features light up.
 
 
-Open `http://localhost:8080`. The initial admin password is printed once on first start:
+Open `http://localhost:8080` and sign in with the default **admin / aigccat**:
 
 ```bash
-docker logs aigccat | grep -A2 "initial account"
+# Forgot it? The default is admin / aigccat; the first-boot log also prints it once
+docker logs aigccat | grep -A2 "初始账号"
 ```
 
+> ⚠️ The default password is only for convenience — **change it before exposing this
+> to the internet**. Set `-e AIGCCAT_ADMIN_PASSWORD=<strong password>` before the first
+> boot. Changing that env var later does **not** reset an existing password; use the
+> admin UI instead.
+
 One container holds storage (MinIO), the backend, the auth gateway and the AI rigging executor.
-**No local compile, no .env needed** — secrets and the admin account are generated on first start and
-kept in the data volume. All state lives in `aigccat-data`, so backup and migration are a single volume copy.
+**No local compile, no .env needed** — the admin account is a fixed **admin / aigccat**, while other
+secrets are generated on first start and kept in the data volume. All state lives in `aigccat-data`,
+so backup and migration are a single volume copy.
 
 > Both Apple Silicon and x86 images are published. Pin a version by replacing `:latest` with `:sha-xxxxxxx`.
 
-**Option B · multi-container (development, or multi-user / public deployment)**
-
-```bash
-git clone https://github.com/RainNameless/aigccat.git && cd aigccat
-cp .env.example .env          # set MINIO_ROOT_PASSWORD and your service keys
-docker compose -p aigccat -f docker-compose.yml up -d --build
-```
-
-For host workers, public deployment and troubleshooting, see the **[Deployment Guide](docs/DEPLOYMENT.md)**.
+For host workers and troubleshooting, see the **[Deployment Guide](docs/DEPLOYMENT.md)**.
 
 > Want the "web subscription" path to actually produce models (spending your own account's credits)?
 > That path needs a one-time session connection on your own machine:
 > **[Connecting your own web-subscription session](docs/STUDIO-SESSION.md)**.
 
-## Not implemented / not verified (stated honestly)
+## Integration status
 
 - The Tripo **API** path exists but was **never verified end to end** — the account balance was 0. Everything actually produced came through the Studio web-subscription path
 - Studio **free-prompt motion** and **arbitrary-body rigging** are not wired up (humanoid is tested; other body types are not guaranteed)
-- **AI texturing** (Studio texture) failed upstream three times; the frontend entry is disabled
+- **AI texturing** (Studio texture) has failed persistently upstream; the frontend entry is disabled
 - Prompt-to-skeletal-animation and a real-device Unity adapter smoke test are unfinished
 
-**Other generation platforms are not integrated at all**: Meshy, Rodin / Hyper3D, Hunyuan3D,
-TRELLIS 2, Hi3D. The provider layer is built to be pluggable, but we have not been able to pay for a
-single real call on any of them — and without real calls we don't write "supported".
-We're looking for sponsors, see the section above.
+**Other generation platforms**: Meshy, Rodin / Hyper3D, Hunyuan3D, Hi3D all have their transport
+layers in place, but none has passed **real end-to-end verification** (no usable key or quota yet),
+so they are not counted as "supported". We're looking for sponsors to finish that verification —
+see **[Sponsorship](docs/SPONSORSHIP.md)**.
 
 ## Known limitations
 
@@ -239,7 +238,6 @@ web/src/        Rust backend (axum + MinIO)
 web/static/     Frontend (index=workbench / library=asset library / admin=console)
 scripts/        auth-server=auth gateway  blender=Blender execution layer
                 studio-runner=Studio runner  opencode-runner=AI rigging
-                deploy/cat-tunnel=public tunnel
 docs/           Documentation (README.md is the index)
 adapters/       Unity / Godot import adapters
 mcp_server/     MCP server

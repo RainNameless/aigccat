@@ -12,7 +12,7 @@ pip install mcp                      # 或 pip install 'mcp<2'
 AIGCCAT_WEB=http://localhost:8080 python3 mcp_server/aigccat_mcp.py   # stdio
 ```
 
-前提：`docker compose up -d`，web 服务在 :8080 可用。
+前提：容器已启动（`docker run` 或 `docker compose -f docker-compose.allinone.yml up -d`），服务在 :8080 可用。
 
 ## 2. 客户端配置
 
@@ -54,8 +54,6 @@ env = { AIGCCAT_WEB = "http://localhost:8080" }
 | 批量 | `batch(op, assets[], style?)` | approve_references / approve_models / auto_publish / regenerate_* / publish / rollback / global_style_apply |
 | 交付 | `compile_bundle(dir, id, version)` | 编译引擎包（GLB + Contract + 大纲 + manifest） |
 | 修改 | `ai_modify(dir, id, instruction)` | 自然语言改 spec（服务端 LLM，返回 diff） |
-
-> 合成体 `create_composition` 已不再提供：后端路由、MCP 工具与前端入口均已删除。
 
 ## 4. 图片推送协议：`kind` 决定归类位置
 
@@ -99,11 +97,12 @@ AI 的执行序列（全部走 MCP，零 API key）：
 ## 7. 免人工审核（快速批）
 
 - 单次：`batch("approve_references"|"approve_models"|"auto_publish", ["characters/chr_x_001", ...])`
-- 全局免审：compose 里给 web 服务加环境变量
+- 全局免审：compose 里给容器加环境变量
 
 ```yaml
-web:
-  environment:
-    AUTO_APPROVE: "1"   # 生成后自动通过两个审核点
-    AUTO_PUBLISH: "1"   # 校验通过即自动发布
+services:
+  aigccat:
+    environment:
+      AUTO_APPROVE: "1"   # 生成后自动通过两个审核点
+      AUTO_PUBLISH: "1"   # 校验通过即自动发布
 ```

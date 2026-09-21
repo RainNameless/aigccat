@@ -64,7 +64,7 @@ docker logs aigccat-dev-verify 2>&1 | grep -i "密码\|password" | head -3
 
 ### 功能验收清单
 
-- [ ] 打开 `http://localhost:28080`，用初始密码登录
+- [ ] 打开 `http://localhost:28080`，用默认账号 **admin** / 密码 **aigccat** 登录
 - [ ] 后台 →「AI 账号」：列表为空、可添加账号（订阅 / API Key / 自定义三种）
 - [ ] 添加自定义模型服务：填 OpenAI 兼容地址 + Key → 模型自动导入，
       生图模型出现在「图片创作」的图像模型下拉里

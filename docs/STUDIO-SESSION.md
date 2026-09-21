@@ -9,8 +9,8 @@
 
 **这件事只能由你做一次**，因为它需要的是你的账号凭据：
 
-- 登录 cookie 等同于账号凭据，不可能随仓库分发 —— `.ai/` 已被 `.gitignore` 排除，我们本地那份也从未提交
-- 凭据只写进**服务容器的数据卷**（`/data/studio/`），不上传、不入库
+- 登录 cookie 等同于账号凭据，不可能随仓库分发
+- 凭据只写进**服务容器的数据卷**，不上传、不入库
 - 所以：一条命令能给你**资产管理与预览**；**要真的生成，得接一次会话**
 
 ---
@@ -22,9 +22,6 @@
 | 系统 | 任选（登录窗口在容器里跑，与宿主系统无关） |
 | 账号 | **你自己的**、有可用额度的订阅账号 |
 | 网络 | 能访问 `studio.tripo3d.ai` / `api.tripo3d.ai`；不能直连就在 `.env` 里配 `STUDIO_PROXY` |
-
-> 早期版本需要先在宿主机上装一个常驻执行器（macOS 的 launchd 服务）。
-> **现在不需要了**；如果你装过，跑 `python3 scripts/studio-runner/install.py` 会把旧的清退掉。
 
 ## 2. 接入
 
@@ -54,9 +51,9 @@ docker compose -f docker-compose.allinone.yml up -d
 
 三点要说清楚，避免误会：
 
-- 窗口出现在**运行执行器的那台机器**上。如果你是从别的设备访问界面，请到那台机器上完成登录。
+- 窗口画面就在网页对话框里，**从任何设备打开界面都能操作**，不需要到某台特定机器前。
 - 取的是**这个窗口**里的登录凭据，不是你日常浏览器的登录态 —— 读你日常浏览器的 cookie 需要动系统钥匙串里的加密密钥，既不可靠也不该那么做。
-- 窗口最多开 30 分钟，超时自动关闭；随时可以点【取消并关闭窗口】。取到凭据后窗口也会自动关掉。
+- 登录窗口有打开时长上限，到时会自动关闭，也可以随时点【取消并关闭窗口】；取到凭据后窗口自动关掉。
 
 **方式二 · 命令行**
 
@@ -76,10 +73,10 @@ node scripts/studio-runner/connect-session.cjs --verify
 node scripts/studio-runner/connect-session.cjs --from ~/auth.json
 
 # 网络需要代理；或反过来强制不使用代理（空串）
-STUDIO_PROXY=http://127.0.0.1:7897 node scripts/studio-runner/connect-session.cjs
+STUDIO_PROXY=http://127.0.0.1:<port> node scripts/studio-runner/connect-session.cjs
 STUDIO_PROXY= node scripts/studio-runner/connect-session.cjs
 
-# 等待登录的秒数（默认 300）
+# 等待登录的秒数
 node scripts/studio-runner/connect-session.cjs --timeout 600
 ```
 
@@ -87,16 +84,10 @@ node scripts/studio-runner/connect-session.cjs --timeout 600
 > 我们**不会**去猜某个本地端口是不是代理 —— 「端口在听」不等于「它是个能用的代理」，
 > 把上游流量交给一个不相干的本地服务既不可靠也不安全。
 >
-> 需要代理的网络环境下，装常驻执行器时把同一行前面也带上它，代理才会写进服务配置：
->
-> ```bash
-> STUDIO_PROXY=http://127.0.0.1:7897 python3 scripts/studio-runner/install.py
-> ```
->
 > 判断代理是否真的能用（**注意端口在听 ≠ 能出网**）：
 >
 > ```bash
-> curl -x http://127.0.0.1:7897 -o /dev/null -w '%{http_code}\n' https://api.tripo3d.ai/
+> curl -x http://127.0.0.1:<port> -o /dev/null -w '%{http_code}\n' https://api.tripo3d.ai/
 > ```
 
 ## 3. 怎么算成功（三个都可自查）
@@ -111,8 +102,8 @@ node scripts/studio-runner/connect-session.cjs --timeout 600
 
 | 位置 | 作用 | 会进仓库吗 |
 |---|---|---|
-| 容器数据卷 `/data/studio/studio-session.auth.json` | 你的网页登录 cookie（只保留 tripo3d.ai 域） | **不会**（数据卷，不在仓库） |
-| 容器数据卷 `/data/studio/studio-runner-token` | 执行器与后端的共享密钥 | **不会** |
+| 容器数据卷内的会话文件 | 你的网页登录 cookie（只保留 tripo3d.ai 域） | **不会**（数据卷，不在仓库） |
+| 容器数据卷内的执行器令牌 | 执行器与后端的共享密钥 | **不会** |
 
 令牌由容器启动器自动生成并同时交给执行器与后端，两边永远一致，不需要手工配置。
 执行器只监听容器内回环，外部摸不到它。
@@ -126,7 +117,7 @@ node scripts/studio-runner/connect-session.cjs --timeout 600
 | 弹窗里显示「执行器不可达」 | 同上 | 同上；容器内默认 `STUDIO_WORKER_URL=127.0.0.1:8790`，一般不需要动 |
 | 登录窗口内嵌画面空白 | 容器内存不足，Chromium 起不来 | 给容器至少 2.5GB 内存；`docker logs <容器> 2>&1 \| grep -i chrom` 看报错 |
 | 点【我已登录】提示「还没有检测到登录」 | 那个窗口里还没登录成功 | 回去把登录走完（有时要过邮箱验证码），再点一次【我已登录】 |
-| 弹窗自己关了，提示「等待登录超时」 | 超过 10 分钟没完成 | 重新打开登录窗口 |
+| 弹窗自己关了，提示「等待登录超时」 | 等待登录超过超时时间 | 重新打开登录窗口（或用 `--timeout` 放宽） |
 | `--verify` 报「登录已失效」 | 会话确实过期，**或**上游瞬时抖动 | 等十几秒重试；持续失效再重新登录（第 2 步） |
 | 报「登录会话刷新连接失败」 | 网络不通 / 代理没生效 | 按上面那条命令先确认代理能不能出网；**代理端口在听不代表它通** |
 | 界面显示「未连接 · 连不上上游（网络或代理不通）」 | 同上：上游真的连不上 | 同上。代理恢复后状态会自己变回「已连接」（界面每 30 秒会复查一次） |
@@ -146,18 +137,6 @@ node scripts/studio-runner/connect-session.cjs --timeout 600
   这是选网页会话而不是长期 API Key 的一个好处：可以随时作废。
 - 想更稳妥、更省心的话，**官方开发者 API 是更正规的路子**（本项目也支持，见
   [`SPONSORSHIP.md`](SPONSORSHIP.md) 里的说明）。
-
-## 7. 给开发者：在本机手动跑执行器（进阶，普通用户不需要）
-
-单容器镜像里执行器已经内置，上面所有步骤都不需要这一节。仅当你在做开发、
-想在自己机器上单独跑一份执行器时才用得上：
-
-```bash
-cd scripts/studio-runner && npm install
-STUDIO_ROOT="$PWD/../.." node server.cjs      # 监听 127.0.0.1:8790
-```
-
-再把容器的 `STUDIO_WORKER_URL` 与 `STUDIO_WORKER_TOKEN` 指过去即可。
 
 ---
 

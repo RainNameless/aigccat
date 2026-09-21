@@ -16,7 +16,7 @@ aigccat 是一条**自托管的 AI 3D 资产管线**：从文字或图片生成�
 
 ## 界面
 
-### 多账号池与自定义模型接入（v0.4 新增）
+### 多账号池与自定义模型接入
 
 **AI 账号页统一管理所有模型凭据** —— sub2api 式账号池：每家供应商可存多条账号
 （订阅 / API Key / 自定义模型服务），绿点标识可用状态，一键切换「当前」、启停、删除。
@@ -89,7 +89,7 @@ aigccat 是一条**自托管的 AI 3D 资产管线**：从文字或图片生成�
 
 - 建模输入：文字 / 单图 / 多视图 / 批量
 - 后处理 10 种操作：减面、重拓扑、四边面、拆分、UV 展开、材质、放大、绑骨、动画、变换
-- 绑骨与动作：Studio 动作模板应用；本地 AI 绑骨（AI 写 Blender 脚本，走 OpenCode 容器）
+- 绑骨与动作：Studio 动作模板应用；本地 AI 绑骨（AI 写 Blender 脚本，由容器内的 OpenCode 桥接执行）
 
 **质量与可追溯**
 
@@ -161,8 +161,8 @@ mkdir -p aigccat-deploy && cd aigccat-deploy
 curl -sSL https://raw.githubusercontent.com/RainNameless/aigccat/main/deploy/docker-deploy.sh | bash
 ```
 
-脚本会下载 compose 配置、启动容器并打印初始账号密码（首次启动自动生成密钥、
-种入 4 个示例资产，不需要先配 .env）。
+脚本会下载 compose 配置、启动容器并打印初始账号密码（默认 **admin / aigccat**；首次启动自动
+生成其余密钥、种入 4 个示例资产，不需要先配 .env）。
 
 **方式 B · 单容器 docker run（零编译）**
 
@@ -177,41 +177,38 @@ docker run -d --name aigccat -p 8080:8080 -v aigccat-data:/data \
 > **宿主机上的 Blender**，所以 Apple Silicon 上想用这些功能，装一个 Blender 即可。
 
 
-打开 `http://localhost:8080`。初始账号密码只在首次启动时打印一次：
+打开 `http://localhost:8080`，用默认账号 **admin** / 密码 **aigccat** 登录：
 
 ```bash
+# 忘了密码？默认值就是 admin / aigccat；首次启动的日志里也会打印一次
 docker logs aigccat | grep -A2 初始账号
 ```
 
+> ⚠️ 默认密码只为「开箱即用」，**公网部署务必改掉**。部署前设
+> `-e AIGCCAT_ADMIN_PASSWORD=你的强密码`（只在账号库为空时生效）；
+> 已有账号库后再改这个环境变量**不会**重置密码，请到后台「账号安全」里改。
+
 一个容器里装齐存储（MinIO）、后端、鉴权网关与 AI 绑骨执行器，**不需要本地编译，也不需要先配 .env**——
-密钥与初始账号在首次启动时自动生成并保存在数据卷里。所有状态都在 `aigccat-data` 这一个卷，
-备份/迁移就是拷它。
+初始账号固定为 **admin / aigccat**，其余密钥（MinIO 密码、机器令牌等）在首次启动时自动生成并保存在数据卷里。
+所有状态都在 `aigccat-data` 这一个卷，备份/迁移就是拷它。
 
 > Apple Silicon 与 x86 服务器都有对应架构的镜像。想固定版本就把 `:latest` 换成 `:sha-xxxxxxx`。
-
-**方式 B · 多容器（开发用，或多用户 / 公网部署）**
-
-```bash
-git clone https://github.com/RainNameless/aigccat.git && cd aigccat
-cp .env.example .env          # 填入 MINIO_ROOT_PASSWORD 与各服务 Key
-docker compose -p aigccat -f docker-compose.yml up -d --build
-```
 
 完整步骤、可选工作器、常见问题见 **[部署指南](docs/DEPLOYMENT.md)**。
 
 > 想用「网页订阅」真的跑出模型（消耗你自己账号的积分）？这条链路需要在你自己的机器上接一次会话：
 > **[接入你自己的网页订阅会话](docs/STUDIO-SESSION.md)**。
 
-## 未接入 / 未验收（如实标注）
+## 接入状态
 
 - Tripo **API** 建模链路代码就绪，但因账户余额为 0 **从未完成真实验收**；实际产出全部来自 Studio 网页订阅链路
 - Studio **自由提示词动作**、**任意形体绑骨**未接入（人形已实测，其他形体不作通用保证）
-- **AI 贴图**（Studio texture）3 次上游失败，前端已暂禁用
+- **AI 贴图**（Studio texture）上游持续失败，前端入口暂禁用
 - 提示词→骨骼动画、Unity 适配器实机冒烟 未完成
 
-**其他生成平台全部未接入**：Meshy、Rodin / Hyper3D、Hunyuan3D、TRELLIS 2、Hi3D。
-接口层是按可插拔多家服务设计的，但这几家我们**连一次真实调用都还没付得起** —— 没有真实调用就不能写「支持」。
-正在找赞助，见上文「[先说我们的窘迫](#先说我们的窘迫我们在找赞助)」。
+**其他生成平台的接入状态**：Meshy、Rodin / Hyper3D、Hunyuan3D、Hi3D 的传输层代码已就绪，
+但都**未完成真实验收**（缺少可用密钥或额度），因此不计入「已支持」。
+正在寻找赞助以完成验收，见 **[关于赞助](docs/SPONSORSHIP.md)**。
 
 ## 已知限制
 
@@ -227,7 +224,6 @@ web/src/        Rust 后端（axum + MinIO）
 web/static/     前端（index=工作台 / library=资产库 / admin=后台）
 scripts/        auth-server=鉴权网关  blender=Blender 执行层
                 studio-runner=Studio 执行器  opencode-runner=AI 绑骨
-                deploy/cat-tunnel=公网隧道
 docs/           文档（README.md 是分类索引）
 adapters/       Unity / Godot 导入适配器
 mcp_server/     MCP 服务

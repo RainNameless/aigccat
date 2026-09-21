@@ -1,7 +1,8 @@
-# 3D 生成供应商官方接口对照（2026-09-17 逐家核对；09-18 五家全部接入）
+# 3D 生成供应商官方接口对照
 
 > 这是 `web/src/providers.rs` 注册表的依据。五家的端点、鉴权、任务模型均按官方文档核实，
-> 且**全部接入生成链路**（Tripo 走 `tripo.rs`，其余四家各有独立传输层）。
+> 传输层均已实现（Tripo 走 `tripo.rs`，其余四家各有独立传输层）。其中 **Tripo 与 Meshy 已通过
+> 真实调用验收**，其余三家因缺少可用密钥或额度，**尚未完成端到端验收**。
 
 ## 总览
 
@@ -46,11 +47,11 @@
   → `status`：`PENDING → IN_PROGRESS → SUCCEEDED / FAILED / CANCELED`
 - 结果：`model_urls.glb`（另有 fbx/obj/usdz/stl/mtl）、`thumbnail_url`、`consumed_credits`
 - 模型：`latest`（当前=Meshy 6）/ `meshy-6` / `meshy-5`
-- 官方测试 Key（不扣积分、返回样例结果）：`msy_dummy_api_key_for_test_mode_12345678`
+- 官方提供测试 Key（不扣积分、返回样例结果），申请方式见 meshy.ai 的 API 文档
 - 注意：非企业用户的生成资产**只保留 3 天**，必须立刻落盘（本链路已这样做）
 - 官方文档：<https://docs.meshy.ai>
 
-### Rodin / Hyper3D（待接入）
+### Rodin / Hyper3D（传输层已就绪，未验收）
 
 - 提交：`POST /v2/rodin`，**multipart 表单**：`prompt`（文生）或 `images`（图生，1–5 张）、
   `tier`（Gen-2.5-Medium / Gen-2 / Regular / Sketch / Detail / Smooth）、`mesh_mode`（Quad/Raw）、
@@ -61,7 +62,7 @@
 - 下载：`POST /v2/download`，body `{"task_uuid": …}` → 结果 URL 列表
 - 官方文档：<https://docs.hyper3d.ai>（快速入门：<https://docs.hyper3d.ai/en/get-started/quick-start>）
 
-### Hunyuan3D / 腾讯混元生3D（待接入）
+### Hunyuan3D / 腾讯混元生3D（传输层已就绪，未验收）
 
 **鉴权与其它四家不同**：走腾讯云 API 3.0 的 **TC3-HMAC-SHA256 签名**
 （SecretId + SecretKey，公共参数 X-TC-Action / X-TC-Timestamp / X-TC-Version / X-TC-Region）。
@@ -80,7 +81,7 @@
 - 额度：新用户 1000 积分体验；默认并发 1
 - 官方文档：<https://cloud.tencent.com/document/product/1804/123463>
 
-### Hi3D / Hitem3D（待接入）
+### Hi3D / Hitem3D（传输层已就绪，未验收）
 
 - 提交：`POST /open-api/v1/submit-task`，**multipart 表单**：
   `images`（单图）或 `multi_images`（≤4 张，顺序为 front/back/left/right）、
@@ -91,7 +92,7 @@
 - 结果：`data.url`（GLB）、`data.cover_url`；**下载链接 1 小时有效**
 - 官方文档：<https://docs.hitem3d.ai/zh/api/api-reference/list/create-task>
 
-## 补齐传输层的固定套路（照 meshy.rs）
+## 新增供应商：传输层实现要点（可参照 meshy.rs）
 
 1. `Client::new(Service, …)`：校验 Key、建 HTTP 客户端；
 2. `create_*`：唯一一次付费 POST，拿到任务号；
@@ -105,5 +106,3 @@
 - 生成请求带 `source: "studio" | "api"`：`studio` = 网页订阅会话（凭据在容器数据卷，
   界面「连接网页订阅」处开关），`api` = 开发者 API（Key 在后台「模型配置管理」）。
 - 目前订阅链路只有 Tripo 一家；其余四家均为 API 模式。
-- 「账号密码换 AK / 浏览器提取凭据」等订阅级复用方案尚未定案，
-  候选：外放服务 + 外网访问 + 容器内浏览器登录（复用现有 noVNC 链路）。
