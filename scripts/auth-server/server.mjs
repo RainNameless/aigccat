@@ -44,6 +44,23 @@ export async function createAuthServer({dir,origin,proxyToken,bootstrap,loginLim
   }
   if(p==='/api/auth/register')return reply(res,403,{error:'注册暂未开放，请联系管理员创建账号',registration_open:false});
   if(!['GET','HEAD'].includes(method)&&req.headers.origin!==requestOrigin(req))fail(403,'请从本站提交操作');
+  // 供登录页判断是否展示「临时登录」入口（公开、不含敏感信息）
+  if(p==='/api/auth/features'&&method==='GET')return reply(res,200,{test_login:process.env.ALLOW_TEST_LOGIN!=='0'});
+  // 临时登录：演示与验收用，点击即登录为 test 账号。设 ALLOW_TEST_LOGIN=0 可整体关闭。
+  // test 固定为 member 角色：能查看与创作资产，但进不了后台、读不到 AI 凭据（见下方 admin 校验）。
+  if(p==='/api/auth/test-login'&&method==='POST'){
+   if(process.env.ALLOW_TEST_LOGIN==='0')fail(403,'临时登录已关闭');
+   let u=data.users.find(u=>u.username==='test');
+   if(!u){
+    u={id:crypto.randomUUID(),username:'test',display_name:'体验账号',role:'member',enabled:true,
+       password_hash:await hashPassword(crypto.randomBytes(32).toString('hex')),created_at:now()};
+    data.users.push(u);audit('创建账号',null,'test',ip);
+   }
+   if(!u.enabled)fail(403,'体验账号已被停用');
+   u.last_login=now();audit('临时登录',u,'',ip);
+   const c=issue(req,u,true);save();
+   return reply(res,200,{user:publicUser(u),registration_open:false,temporary:true},{'Set-Cookie':c});
+  }
   if(p==='/api/auth/login'&&method==='POST'){
    const b=await body(req),name=typeof b.username==='string'?b.username.trim().toLowerCase():'',ipKey='ip:'+String(ip||'unknown'),userKey='user:'+name.slice(0,32);
    if((attempts.get(ipKey)?.count||0)>=loginLimit*3||(attempts.get(userKey)?.count||0)>=loginLimit)fail(429,'尝试次数过多，请在15分钟后重试');
