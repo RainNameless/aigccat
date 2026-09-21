@@ -1,0 +1,146 @@
+// aigccat CI/CD 流水线
+//
+// 同一个脚本服务两条流水线（aigccat-prod / aigccat-dev）：
+// 作业里用参数告诉它「部署到哪套环境、用哪个 compose 文件、健康检查打哪里」，
+// 所以本文件**不带任何环境专属信息**（域名、路径、口令都在 Jenkins 作业参数里），
+// 可以直接放在公开仓库里。
+//
+// 阶段：检出 → 后端单元测试 → 网关测试 → 构建镜像 → 打标签 → 部署 → 健康检查
+//
+// 为什么测试跑在 docker run 里：Jenkins 镜像不带 Rust / Node 工具链，
+// 而宿主机已有 rust:1-slim-bookworm、node:22-bookworm-slim 两个镜像与 cargo 缓存，
+// 直接借来用即可，不必把这些工具链塞进 Jenkins 镜像、也不必每次都重下依赖。
+// 测试容器的 target/ 挂在宿主机 /ci-cache 上并按环境分开 —— 否则每次全新 clone
+// 都等于全量重编依赖（十几分钟）。
+
+pipeline {
+  agent any
+
+  options {
+    timestamps()
+    buildDiscarder(logRotator(numToKeepStr: '20'))
+    disableConcurrentBuilds()      // 同一环境不允许并发部署，避免两个 compose up 打架
+    timeout(time: 90, unit: 'MINUTES')
+  }
+
+  parameters {
+    string(name: 'ENVIRONMENT', defaultValue: 'prod',
+           description: '环境标识：决定镜像标签与 cargo 缓存目录')
+    string(name: 'COMPOSE_FILE', defaultValue: '',
+           description: '部署用的 compose 文件绝对路径；留空 = 用本仓库根目录的 docker-compose.allinone.yml')
+    string(name: 'ENV_FILE', defaultValue: '',
+           description: '额外的 --env-file（例如给 AUTH_ORIGIN）；留空则不加')
+    string(name: 'HEALTH_URL', defaultValue: '',
+           description: '部署后健康检查地址（容器回环，不经 CDN）；留空则跳过')
+    booleanParam(name: 'SKIP_TESTS', defaultValue: false,
+           description: '跳过测试（仅救急用；正常不要勾）')
+  }
+
+  environment {
+    IMAGE_REPO  = 'ghcr.io/rainnameless/aigccat'
+    CARGO_CACHE = "/ci-cache/cargo-target-${params.ENVIRONMENT}"
+  }
+
+  stages {
+    stage('检出') {
+      steps {
+        checkout scm
+        script {
+          env.SHORT_SHA = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+          echo "分支 ${env.GIT_BRANCH} · 提交 ${env.SHORT_SHA} · 环境 ${params.ENVIRONMENT}"
+        }
+      }
+    }
+
+    stage('后端单元测试') {
+      when { expression { !params.SKIP_TESTS } }
+      steps {
+        sh '''
+          set -e
+          mkdir -p "$CARGO_CACHE"
+          docker run --rm \
+            -v "$WORKSPACE/web:/app" \
+            -v "$CARGO_CACHE:/app/target" \
+            -v /root/.cargo/registry:/usr/local/cargo/registry \
+            -v /ci-cache/cargo-config.toml:/usr/local/cargo/config.toml:ro \
+            -w /app \
+            rust:1-slim-bookworm \
+            cargo test --bin aigccat-web
+        '''
+      }
+    }
+
+    stage('网关测试') {
+      when { expression { !params.SKIP_TESTS } }
+      steps {
+        sh '''
+          set -e
+          docker run --rm -v "$WORKSPACE:/ws" -w /ws \
+            node:22-bookworm-slim \
+            node --test scripts/auth-server/gateway.test.mjs
+        '''
+      }
+    }
+
+    stage('构建镜像') {
+      steps {
+        sh '''
+          set -e
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg TARGETARCH=amd64 \
+            --build-arg APT_MIRROR="${APT_MIRROR:-mirrors.ustc.edu.cn}" \
+            -f deploy/allinone/Dockerfile \
+            -t "$IMAGE_REPO:${params.ENVIRONMENT}" \
+            -t "$IMAGE_REPO:${params.ENVIRONMENT}-${SHORT_SHA}" \
+            --load .
+        '''
+      }
+    }
+
+    stage('部署') {
+      steps {
+        sh '''
+          set -e
+          CMP="${COMPOSE_FILE:-$WORKSPACE/docker-compose.allinone.yml}"
+          if [ -n "$ENV_FILE" ]; then ENVARG="--env-file $ENV_FILE"; else ENVARG=""; fi
+          echo "compose : $CMP"
+          echo "env-file: ${ENV_FILE:-(无)}"
+          # 项目名来自 compose 文件里的 name:，所以重建不会换数据卷
+          docker compose $ENVARG -f "$CMP" up -d --force-recreate
+          docker compose $ENVARG -f "$CMP" ps
+        '''
+      }
+    }
+
+    stage('健康检查') {
+      steps {
+        sh '''
+          set -e
+          if [ -z "$HEALTH_URL" ]; then echo "未配置 HEALTH_URL，跳过"; exit 0; fi
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$HEALTH_URL" || true)
+            echo "第 $i 次探测 $HEALTH_URL → HTTP $code"
+            case "$code" in
+              2*) echo "健康检查通过"; exit 0 ;;
+            esac
+            sleep 5
+          done
+          echo "健康检查失败，最近容器日志："
+          docker ps -a --format '{{.Names}}\t{{.Status}}' | grep -i aigccat || true
+          docker logs --tail 60 $(docker ps -a --format '{{.Names}}' | grep -i aigccat | head -1) 2>&1 | tail -60 || true
+          exit 1
+        '''
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "✔ ${params.ENVIRONMENT} 部署完成：${env.IMAGE_REPO}:${params.ENVIRONMENT}（${env.SHORT_SHA}）"
+    }
+    unsuccessful {
+      sh 'docker ps -a --format "{{.Names}}\t{{.Status}}" | grep -i aigccat || true'
+    }
+  }
+}
