@@ -71,7 +71,9 @@ export async function createGateway({dir,proxyToken,automationToken,upstream,pub
    if(authRoute)Object.assign(headers,authHeaders);
    else{
     delete headers.authorization;delete headers.cookie;
-    if(headers.origin===origin)headers.origin='http://'+host;
+    // Origin 必须原样透传给应用：应用用它与 SERVICES_PUBLIC_ORIGIN（HTTPS 部署下为 https）
+    // 比对来做 CSRF 同源校验。这里若改写成 'http://'+host，协议被降级成 http，
+    // 应用侧比对恒不成立 —— 表现为所有写操作（保存配置 / 启停账号）统一 403。
    }
    delete headers.connection;delete headers['proxy-authorization'];
    const outgoing=http.request({hostname:destination.hostname,port:destination.port,method:req.method,path:destPath,headers,timeout:600000},incoming=>{
