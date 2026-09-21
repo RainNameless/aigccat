@@ -299,7 +299,16 @@ impl Catalog {
     /// —— 账号列表一开始就不是空的，老配置无缝变成第一条账号。
     fn ensure_default_accounts(&mut self) {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-        let next_id = |accounts: &[Account]| format!("acct-{}", now.max(1) * 1000 + accounts.len() as u64 + 1);
+        // id 必须**可复现**。catalog() 是读接口：每次 GET /api/settings/catalog 都会走一遍这里补默认账号。
+        // 早先 id 里掺了当前秒（acct-{秒*1000+序号}），于是同一条账号每读一次就换一个 id ——
+        // 前端拿上一秒渲染出来的 id 去 PATCH/DELETE 时，服务端这里已经又造了一批新 id，
+        // find() 必然落空，表现为「启停 / 删除账号」永远报「账号不存在」，且永远修不好（id 一直在变）。
+        // 固定的 id 让重复补种变成幂等操作：第一次写入落盘后，后续读取拿到的是同一条。
+        let stable_id = |accounts: &[Account], base: String| {
+            let mut id = base;
+            while accounts.iter().any(|a| a.id == id) { id.push('-'); }
+            id
+        };
         // 任何已配过 Key 的接入（内置供应商与自定义接入）都补一条「默认账号」——
         // 老配置里的 Key 无缝变成账号池里的第一条，账号页一开始就有东西可管。
         // 名字用接入名（「Sub2API · 文本」这类），多条账号并排时才分得清谁是谁。
@@ -307,17 +316,19 @@ impl Catalog {
             let has_key_account = self.accounts.iter().any(|a| a.provider == p.id && a.kind == "apikey");
             if !p.api_key.trim().is_empty() && !has_key_account {
                 let label = if p.name.trim().is_empty() { "默认账号".to_string() } else { p.name.trim().to_string() };
+                let id = stable_id(&self.accounts, format!("acct-{}-default", p.id));
                 self.accounts.push(Account {
-                    id: next_id(&self.accounts), name: label, provider: p.id.clone(),
+                    id, name: label, provider: p.id.clone(),
                     kind: "apikey".into(), api_key: p.api_key.clone(), base_url: p.base_url.clone(),
                     enabled: true, active: true, created_at: now,
                 });
             }
         }
-        // 订阅：已经登录过（活跃会话文件存在）却没有登记的，补一条「默认订阅」并捕获当前会话
+        // 订阅：已经登录过（活跃会话文件存在）却没有登记的，补一条「默认订阅」并捕获当前会话。
+        // id 同样固定：否则每读一次就往 sessions/ 下多写一个以当时时间命名的新存档，越攒越多。
         if !self.accounts.iter().any(|a| a.kind == "subscription") {
             if let Some(slot) = studio_active_session().filter(|f| f.exists()) {
-                let id = next_id(&self.accounts);
+                let id = stable_id(&self.accounts, "acct-subscription-default".to_string());
                 if capture_session_file(&slot, &id).is_ok() {
                     self.accounts.push(Account {
                         id: id.clone(), name: "默认订阅".into(), provider: "tripo".into(),
@@ -560,6 +571,23 @@ mod tests {
         let resolved=configured.plan_service().unwrap();
         assert_eq!(resolved.model,expected.model);
         assert_eq!(resolved.api_key,"private-test-key");
+    }
+    /// 回归：catalog() 是读接口，每次调用都会补一遍「默认账号」。
+    /// id 若掺了当前时间（旧实现是 acct-{秒*1000+序号}），同一批账号每读一次就换 id，
+    /// 前端拿到的 id 立刻失效 —— 表现为「暂停 / 删除账号」永远报「账号不存在」。
+    #[test]
+    fn default_account_ids_are_stable_across_reads() {
+        // 显式构造一条配了 Key 的接入，避免依赖进程环境里有没有内置供应商的 Key
+        let mut c=Catalog::default();
+        c.providers.push(Provider { id:"px".into(),name:"PX".into(),base_url:"https://example.com/v1".into(),api_key:"private-test-key".into() });
+        let s=Service { base_url:"https://example.com/v1".into(),model:"text-model".into(),api_key:"private-test-key".into() };
+        let mut settings=Services { text:s.clone(),image:Service { model:"image-model".into(),..s },vision:None,catalog:Some(c) };
+        let ids=|x:&Services| x.catalog().accounts.iter().map(|a|a.id.clone()).collect::<Vec<_>>();
+        let first=ids(&settings);
+        assert!(first.contains(&"acct-px-default".to_string()),"配了 Key 的接入应补出固定 id 的默认账号，实际 {first:?}");
+        assert_eq!(first,ids(&settings),"连续两次读取补出的账号 id 必须一致");
+        settings.catalog=Some(settings.catalog());
+        assert_eq!(first,ids(&settings),"已落盘的 catalog 读回来也不能换 id");
     }
     #[tokio::test]
     async fn upstream_classification_is_safe() {
