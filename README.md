@@ -16,6 +16,16 @@ aigccat 是一条**自托管的 AI 3D 资产管线**：从文字或图片生成�
 
 ## 界面
 
+### 工作台
+
+11 个工具、3D 预览与朝向控制、右侧资产面板；顶部是六步流程指示。
+
+![工作台](docs/screenshots/workbench.png)
+
+初次使用从一句描述开始，也可以直接上传参考图：
+
+![新建草稿](docs/screenshots/workbench-new.png)
+
 ### 多账号池与自定义模型接入
 
 **AI 账号页统一管理所有模型凭据** —— sub2api 式账号池：每家供应商可存多条账号
@@ -28,16 +38,6 @@ aigccat 是一条**自托管的 AI 3D 资产管线**：从文字或图片生成�
 选一个模型直接试文字或图片，验证账号通不通。
 
 ![添加 AI 账号](docs/screenshots/add-account.png)
-
-### 工作台
-
-11 个工具、3D 预览与朝向控制、右侧资产面板；顶部是六步流程指示。
-
-![工作台](docs/screenshots/workbench.png)
-
-初次使用从一句描述开始，也可以直接上传参考图：
-
-![新建草稿](docs/screenshots/workbench-new.png)
 
 ### 模型构建与回收站
 
