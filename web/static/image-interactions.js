@@ -96,8 +96,16 @@ document.addEventListener('click',event=>{
     dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});
   }
   dialog.classList.remove('original-size');
-  dialog.querySelector('img').src=img.currentSrc||img.src;
-  dialog.querySelector('header span').textContent=img.naturalWidth+' × '+img.naturalHeight;
+  /* ★ 点开就是要看细节，必须拿原图：加 full=1 让 nginx 跳过按需缩略。
+     列表里的 <img> 会被缩到 192，若这里沿用同一个 URL 就还是缩略图，
+     而且下面那行尺寸标签会显示成 192 × 288 这种错值。 */
+  const lbPreview=dialog.querySelector('img');
+  const lbLabel=dialog.querySelector('header span');
+  const lbBase=(img.currentSrc||img.src).replace(/([?&])full=1\b&?/,'$1').replace(/[?&]$/,'');
+  lbLabel.textContent='加载中…';
+  lbPreview.onload=()=>{lbLabel.textContent=lbPreview.naturalWidth+' × '+lbPreview.naturalHeight;};
+  lbPreview.onerror=()=>{lbLabel.textContent='加载失败';};
+  lbPreview.src=lbBase+(lbBase.includes('?')?'&':'?')+'full=1';
   dialog.showModal();
 },true);
 const style=document.createElement('style');

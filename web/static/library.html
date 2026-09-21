@@ -219,7 +219,7 @@
 <link rel="stylesheet" href="/shell.css?v=13">
 <link rel="stylesheet" href="/library-backup.css?v=1">
 <script src="/vendor/lucide.min.js" defer></script>
-<script src="/shell.js?v=13"></script>
+<script src="/shell.js?v=14"></script>
 </head>
 <body data-page-node-id="52s8WGODllVDvNhXXHG2Mj">
 <header data-page-node-id="WIDFOCuqvJFHq0OLR4SbeH">
@@ -551,7 +551,7 @@ async function pageLibrary() {
     const done = [], failed = [];
     try {
       for (const ref of refs) {
-        try { await api('/api/assets/' + ref, 'DELETE'); done.push(ref); }
+        try { await api('/api/assets/' + ref, { method: 'DELETE' }); done.push(ref); }
         catch (e) { failed.push(ref + '（' + String(e.message || e).slice(0, 60) + '）'); }
       }
       if (done.length) {

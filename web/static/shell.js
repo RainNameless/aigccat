@@ -23,7 +23,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     // Firefox locks import maps when the first module starts loading.
     // Wait until the document's import map has been parsed.
-    import('/image-interactions.js?v=1').catch(error=>console.error('图片交互加载失败',error));
+    import('/image-interactions.js?v=2').catch(error=>console.error('图片交互加载失败',error));
     const page = location.pathname.includes('admin.html') ? 'admin' : location.pathname.includes('account.html') ? 'account' : location.pathname.includes('settings') ? 'settings' : location.pathname.includes('comparison') ? 'comparison' : location.pathname.includes('library') ? 'library' : 'home';
     document.body.dataset.page = page;
     const old = document.querySelector('body > header');
