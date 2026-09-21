@@ -2,17 +2,13 @@
   { "name": "鹿形生物", "type": "animal", "model": "models/anm_asset_009.glb",
     "preview": "images/anm_asset_009-preview.png",
     "views": { "front": "images/anm_asset_009-front.png", "side": "images/anm_asset_009-side.png", "back": "images/anm_asset_009-back.png", "right": "images/anm_asset_009-right.png" },
-    "description": "示例资产：Tripo 订阅生成的鹿形生物（压缩版：5 万面 / 1024 贴图）" },
-  { "name": "毛绒生物", "type": "animal", "model": "models/anm_asset_008.glb",
-    "preview": "images/anm_asset_008-preview.png",
-    "views": { "front": "images/anm_asset_008-front.png", "side": "images/anm_asset_008-side.png", "back": "images/anm_asset_008-back.png", "right": "images/anm_asset_008-right.png" },
-    "description": "示例资产：毛绒生物（压缩版：5 万面 / 1024 贴图）" },
-  { "name": "龙纹陶瓷壶", "type": "prop", "model": "models/prp_asset_224.glb",
-    "preview": "images/prp_asset_224-preview.png",
-    "views": { "front": "images/prp_asset_224-front.png", "side": "images/prp_asset_224-side.png", "back": "images/prp_asset_224-back.png", "right": "images/prp_asset_224-right.png" },
-    "description": "示例资产：青花瓷龙纹茶壶（压缩版：5 万面 / 1024 贴图）" },
+    "description": "示例资产：Tripo 订阅生成的鹿形生物（原始高模，未做几何压缩）" },
   { "name": "哥特钟楼", "type": "building", "model": "models/bld_asset_024.glb",
     "preview": "images/bld_asset_024-preview.png",
     "views": { "front": "images/bld_asset_024-front.png", "side": "images/bld_asset_024-side.png", "back": "images/bld_asset_024-back.png", "right": "images/bld_asset_024-right.png" },
-    "description": "示例资产：哥特风格钟楼建筑（压缩版：5 万面 / 1024 贴图）" }
+    "description": "示例资产：哥特风格钟楼建筑（原始高模，未做几何压缩）" },
+  { "name": "银雕骑士", "type": "character", "model": "models/chr_asset_240.glb",
+    "preview": "images/chr_asset_240-preview.png",
+    "views": { "front": "images/chr_asset_240-front.png", "side": "images/chr_asset_240-side.png", "back": "images/chr_asset_240-back.png", "right": "images/chr_asset_240-right.png" },
+    "description": "示例资产：银雕骑士（原始高模，未做几何压缩）" }
 ]

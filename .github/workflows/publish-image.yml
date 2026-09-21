@@ -4,28 +4,16 @@ name: publish all-in-one image
 # 这样别人不用在本地编译 Rust、也不用拉基础镜像，一条 docker run 就能跑。
 #
 # 产物：ghcr.io/rainnameless/aigccat:latest          —— 跟随 main 最新
-#       ghcr.io/rainnameless/aigccat:test           —— 跟随 test 分支（验收用，不影响 latest）
 #       ghcr.io/rainnameless/aigccat:sha-<短提交>   —— 固定版本，可复现
 #       ghcr.io/rainnameless/aigccat:<git tag>      —— 打 tag 时
 #
-# ⚠ test 分支的构建只打 :test 与 :sha-，**绝不打 :latest** ——
-#   test 是待验收代码，main 合并（即人工确认）之前不允许成为对外默认版本。
-#
-# 两个架构各在原生 runner 上构建后合并成一个 manifest（不用 QEMU 模拟：
-# opencode-ai 装的是原生二进制，模拟构建容易失败且极慢）。
-#
-# 两个架构的差别只在**有没有 Blender**：
-#   amd64 → 装官方 Blender 5.2（Blender 官方只发布 Linux x64），减面/重拓扑/绑骨容器内直接可用
-#   arm64 → 装不了（官方没有 Linux arm64 版），镜像不含 Blender，
-#           运行时由 supervisor 自动改用宿主机上的 Blender
-# Dockerfile 里用 TARGETARCH 分支，supervisor 用「Blender 二进制在不在」判断，不需要两套代码。
-#
-# ⚠ 试过「统一构建 amd64，Apple Silicon 走 Rosetta」—— 行不通：
-#   MinIO 是 Go 写的，在 Rosetta 下会崩（runtime: lfstack.push invalid packing）。
+# 只构建 amd64：官方 Blender 仅提供 Linux x64，amd64 镜像可以把 Blender 5.2 打包进容器
+# （减面 / 重拓扑 / 部件编辑 / 自动绑骨开箱可用）；arm64 没有对应的 Blender 构建，
+# 而本项目的部署目标是 x86 服务器，因此只发布 amd64，不额外维护 arm64 构建链。
 
 on:
   push:
-    branches: [main, test]
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
 
@@ -34,16 +22,7 @@ env:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: linux/amd64
-            runner: ubuntu-latest
-          # 公开仓库可用的 arm64 原生 runner；若你的仓库不可用，删掉这一项即可
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -64,10 +43,10 @@ jobs:
         with:
           context: .
           file: deploy/allinone/Dockerfile
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+          cache-from: type=gha,scope=linux/amd64
+          cache-to: type=gha,mode=max,scope=linux/amd64
 
       - name: Export digest
         run: |
@@ -78,11 +57,11 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ strategy.job-index }}
+          name: digests
           path: /tmp/digests/*
           retention-days: 1
 
-  merge:
+  publish:
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -92,7 +71,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: /tmp/digests
-          pattern: digests-*
+          pattern: digests
           merge-multiple: true
 
       - uses: docker/setup-buildx-action@v3
@@ -103,17 +82,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create multi-arch manifest
+      - name: Create image manifest
         working-directory: /tmp/digests
         run: |
           SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          # main → :latest + :sha-；test → :test + :sha-（绝不打 :latest）
           TAGS="-t ${IMAGE}:sha-${SHORT_SHA}"
-          if [ "${GITHUB_REF_NAME}" = "main" ]; then
-            TAGS="${TAGS} -t ${IMAGE}:latest"
-          elif [ "${GITHUB_REF_NAME}" = "test" ]; then
-            TAGS="${TAGS} -t ${IMAGE}:test"
-          fi
+          # main → 同时打 :latest；打 tag → 额外打 tag 名
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then TAGS="${TAGS} -t ${IMAGE}:latest"; fi
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then TAGS="${TAGS} -t ${IMAGE}:${GITHUB_REF_NAME}"; fi
           docker buildx imagetools create ${TAGS} \
             $(printf "${IMAGE}@sha256:%s " *)
@@ -121,9 +96,4 @@ jobs:
           IMAGE: ${{ env.IMAGE }}
 
       - name: Show result
-        run: |
-          if [ "${GITHUB_REF_NAME}" = "test" ]; then
-            docker buildx imagetools inspect ${{ env.IMAGE }}:test
-          else
-            docker buildx imagetools inspect ${{ env.IMAGE }}:latest
-          fi
+        run: docker buildx imagetools inspect ${{ env.IMAGE }}:latest
