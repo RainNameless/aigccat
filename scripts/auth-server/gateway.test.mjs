@@ -39,13 +39,18 @@ test('all entrances require login; shared users, separate cookies, CSRF and mach
   const asset=await request('/api/assets',{headers:{cookie}});assert.equal(asset.status,200);assert.equal(asset.json().cookie,undefined);
   const vnc=await request('/studio/vnc/vnc.html',{headers:{cookie}});assert.equal(vnc.status,200);assert.equal(vnc.json().url,'/vnc.html');
   assert.equal((await request('/api/workbench/state',{method:'PUT',headers:{cookie,origin:'http://evil.example'},body:'{}'})).status,403);
-  assert.equal((await request('/api/workbench/state',{method:'PUT',headers:{cookie,origin:'http://localhost:8080'},body:'{}'})).status,200);
+  const localWrite=await request('/api/workbench/state',{method:'PUT',headers:{cookie,origin:'http://localhost:8080'},body:'{}'});
+  assert.equal(localWrite.status,200);
+  assert.equal(localWrite.json().origin,'http://localhost:8080');
   const payload=Buffer.alloc(1024*1024,65);
   const upload=await request('/api/assets/import',{method:'POST',headers:{authorization:'Bearer private-machine'},body:payload});assert.equal(upload.status,200);assert.equal(upload.json().size,payload.length);assert.equal(upload.json().authorization,undefined);
   assert.equal((await request('/api/admin/users',{headers:{authorization:'Bearer private-machine'}})).status,401);
   assert.equal((await request('/api/assets',{host:'aigccat.invalid',headers:{...remote,authorization:'Bearer private-machine'}})).status,401);
   const pubCookie=pub.headers['set-cookie'][0].split(';')[0];
-  const publicWrite=await request('/api/workbench/state',{host:'aigccat.invalid',method:'PUT',headers:{...remote,cookie:pubCookie,origin:'https://aigccat.invalid'},body:'{}'});assert.equal(publicWrite.status,200);assert.equal(publicWrite.json().origin,'http://aigccat.invalid');
+  // 写操作的同源校验由应用侧做：它拿收到的 Origin 与 SERVICES_PUBLIC_ORIGIN 比对。
+  // 网关**必须原样透传** Origin —— 曾经这里改写成 'http://'+host，HTTPS 部署下协议被降级，
+  // 应用侧比对恒不成立，所有写操作 403。所以断言的是「原样到达」，不是改写后的值。
+  const publicWrite=await request('/api/workbench/state',{host:'aigccat.invalid',method:'PUT',headers:{...remote,cookie:pubCookie,origin:'https://aigccat.invalid'},body:'{}'});assert.equal(publicWrite.status,200);assert.equal(publicWrite.json().origin,'https://aigccat.invalid');
   assert.equal((await request('/api/auth/logout',{method:'POST',headers:{cookie,origin:'http://localhost:8080'}})).status,200);
   assert.equal((await request('/api/auth/me',{headers:{cookie}})).status,401);
  }finally{gateway.closeAllConnections();await new Promise(r=>gateway.close(r));await new Promise(r=>upstream.close(r));fs.rmSync(dir,{recursive:true,force:true});}
