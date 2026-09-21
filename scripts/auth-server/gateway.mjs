@@ -13,7 +13,15 @@ function localHost(host){return host==='localhost'||host==='[::1]'||isIP(host)==
 // 于是默认状态下 remote 分支恒为 false —— 公开入口关闭，本地/内网访问照常。
 const DEFAULT_PUBLIC_ORIGIN='http://aigccat.invalid';
 function normalizeOrigin(v){
- if(!v)return DEFAULT_PUBLIC_ORIGIN;
+ if(!v){
+  // 没设 AUTH_ORIGIN 时公开入口整体关闭：remote 分支永远不成立，
+  // 而公网域名既不等于 publicOrigin 又不是内网地址 → 每个请求都吃 403「不支持此访问地址」。
+  // 这个症状完全看不出根因，所以在启动时把话说明白。
+  console.warn('[gateway] 未设置 AUTH_ORIGIN —— 只接受本机/内网地址访问；'
+   +'用公开域名（HTTPS 反代 / CDN）访问会一律返回 403「不支持此访问地址」。'
+   +'反代部署请设置 AUTH_ORIGIN=https://你的域名');
+  return DEFAULT_PUBLIC_ORIGIN;
+ }
  try{const u=new URL(v);if(u.protocol!=='http:'&&u.protocol!=='https:')throw Error('must be http(s)');return u.origin;}catch(e){console.warn(`[gateway] AUTH_ORIGIN 不是合法的 http(s) 地址，已忽略：${v}（${e.message}）`);return DEFAULT_PUBLIC_ORIGIN;}
 }
 export async function createGateway({dir,proxyToken,automationToken,upstream,publicOrigin=DEFAULT_PUBLIC_ORIGIN,bootstrap,novnc}){

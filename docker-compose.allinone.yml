@@ -30,8 +30,10 @@
 #   OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL   文字模型（生成计划、命名等）
 #   TRIPO_API_KEY                                     Tripo API 建模（可选）
 #   IMAGE_API_KEY / IMAGE_BASE_URL / IMAGE_MODEL     图片模型（可选）
-#   AUTH_ORIGIN                                      用 HTTPS 反代暴露时的公开地址，
+#   AUTH_ORIGIN                                      **用 HTTPS 反代 / CDN 对外时必填**：公开地址，
 #                                                    如 https://aigccat.example.com
+#                                                    留空则只接受本机/内网访问，公开域名会一律 403
+#                                                    「不支持此访问地址」
 #   AIGCCAT_ADMIN_USER / AIGCCAT_ADMIN_PASSWORD      覆盖初始账号密码（默认 admin / aigccat）
 #   MINIO_ROOT_PASSWORD                              MinIO 密码（不设则自动生成）
 #
@@ -63,6 +65,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
       AIGCCAT_ADMIN_PASSWORD: ${AIGCCAT_ADMIN_PASSWORD:-}
       RIG_AGENT_TOKEN: ${RIG_AGENT_TOKEN:-}
+      # 反代 / CDN 对外时**必须**填公开地址，否则网关会拒绝公开域名的所有请求（403）
       AUTH_ORIGIN: ${AUTH_ORIGIN:-}
       # 生成能力（不配也能跑，只是生成类功能不可用）
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
