@@ -92,6 +92,13 @@ pipeline {
             -t "$IMAGE_REPO:${ENVNAME}" \
             -t "$IMAGE_REPO:${ENVNAME}-${SHORT_SHA}" \
             --load .
+          # 生产必须**同时**更新 :latest —— 仓库里的 docker-compose.allinone.yml 引用的就是它
+          # （对普通用户而言那是对的）。只打 :prod 的话，compose 还会拉起上一次的镜像，
+          # 表现是「流水线绿了但代码没上去」。dev 用独立的 :dev 标签，不碰 :latest。
+          if [ "$ENVNAME" = "prod" ]; then
+            docker tag "$IMAGE_REPO:${ENVNAME}-${SHORT_SHA}" "$IMAGE_REPO:latest"
+            echo "已同步 :latest → ${SHORT_SHA}"
+          fi
         '''
       }
     }
